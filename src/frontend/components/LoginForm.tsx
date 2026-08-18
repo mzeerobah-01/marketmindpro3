@@ -242,27 +242,62 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, isDarkMode
             </button>
           </form>
 
-          {/* Deriv Direct OAuth Divider & Button */}
+          {/* Alternative Quick Access Options */}
           <div className="my-5 flex items-center justify-center relative">
             <div className="border-t border-[#2B2F36] w-full" />
             <span className="bg-[#161A1E] px-3 text-[10px] text-[#848E9C] font-mono uppercase tracking-wider shrink-0">
-              OR LOG IN DIRECTLY
+              OR QUICK ACCESS
             </span>
             <div className="border-t border-[#2B2F36] w-full" />
           </div>
 
-          <button
-            id="btn-login-deriv-oauth"
-            type="button"
-            onClick={() => {
-              const appId = localStorage.getItem('mmp_deriv_app_id') || '1089';
-              window.location.href = `https://oauth.deriv.com/oauth2/authorize?app_id=${appId}&l=en&brand=deriv`;
-            }}
-            className="w-full py-2.5 px-4 rounded-lg bg-[#FF444F] hover:bg-[#E53935] text-white font-bold text-xs tracking-wide uppercase transition duration-150 flex items-center justify-center space-x-2 shadow-lg shadow-red-500/20 cursor-pointer"
-          >
-            <span className="w-4 h-4 rounded bg-white text-[#FF444F] font-black text-[10px] flex items-center justify-center">d</span>
-            <span>Log In with Deriv Account</span>
-          </button>
+          <div className="space-y-2.5">
+            <button
+              id="btn-login-instant-demo"
+              type="button"
+              onClick={() => {
+                const demoUser: UserSession = {
+                  id: 'demo_operator_01',
+                  email: 'trader@marketmind.pro',
+                  name: 'Terminal Analyst',
+                  role: 'Quantitative Trader (Full Suite)',
+                  lastLogin: Date.now(),
+                };
+                localStorage.setItem('marketmind_auth_token', btoa(`demo_${Date.now()}`));
+                localStorage.setItem('marketmind_auth_user', JSON.stringify(demoUser));
+                onLoginSuccess(demoUser);
+              }}
+              className="w-full py-2.5 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs tracking-wide uppercase transition duration-150 flex items-center justify-center space-x-2 shadow-lg shadow-emerald-500/20 cursor-pointer"
+            >
+              <ShieldCheck className="w-4 h-4" />
+              <span>Launch Terminal (Instant Access)</span>
+            </button>
+
+            <button
+              id="btn-login-deriv-oauth"
+              type="button"
+              onClick={() => {
+                const currentOrigin = window.location.origin;
+                const appId = localStorage.getItem('mmp_deriv_app_id') || '1089';
+                window.open('https://app.deriv.com/account/api-token', '_blank');
+                // Also trigger instant access so they are in the app ready to paste the token
+                const derivUser: UserSession = {
+                  id: 'deriv_guest',
+                  email: 'deriv-trader@marketmind.pro',
+                  name: 'Deriv Trader',
+                  role: 'Deriv Synthetic Operator',
+                  lastLogin: Date.now(),
+                };
+                localStorage.setItem('marketmind_auth_token', btoa(`deriv_${Date.now()}`));
+                localStorage.setItem('marketmind_auth_user', JSON.stringify(derivUser));
+                onLoginSuccess(derivUser);
+              }}
+              className="w-full py-2.5 px-4 rounded-lg bg-[#1E2329] hover:bg-[#2B2F36] border border-[#2B2F36] text-[#EAECEF] font-bold text-xs tracking-wide uppercase transition duration-150 flex items-center justify-center space-x-2 cursor-pointer"
+            >
+              <span className="w-4 h-4 rounded bg-[#FF444F] text-white font-black text-[10px] flex items-center justify-center">d</span>
+              <span>Open Deriv Portal & Launch Terminal</span>
+            </button>
+          </div>
 
           {/* Security Notice Footer */}
           <div className="mt-6 pt-4 border-t border-[#2B2F36] text-center">

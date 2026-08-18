@@ -281,31 +281,33 @@ export const DerivAuthorizeModal: React.FC<DerivAuthorizeModalProps> = ({
                   <div className="w-6 h-6 rounded bg-red-500 text-white font-bold flex items-center justify-center text-xs">
                     d
                   </div>
-                  <span className="font-bold text-white text-xs">Deriv 1-Click OAuth Login</span>
+                  <span className="font-bold text-white text-xs">Deriv Account Connect</span>
                   <span className="text-[9px] bg-red-500/20 text-red-300 border border-red-500/40 px-1.5 py-0.2 rounded font-mono uppercase">
-                    Recommended
+                    2-Step Connect
                   </span>
                 </div>
                 <p className="text-[11px] text-[#848E9C] mt-1">
-                  Log in directly with your Deriv email & password — no copying tokens required.
+                  Deriv OAuth logs you in on <code className="text-white">app.deriv.com</code>. Once logged in, open the token page to copy your 15-character API token:
                 </p>
               </div>
 
-              <button
-                id="btn-deriv-oauth-login"
-                type="button"
-                onClick={() => derivWebSocket.loginWithOAuth()}
-                className="w-full sm:w-auto px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs uppercase flex items-center justify-center space-x-2 shrink-0 transition shadow-lg shadow-red-600/20 cursor-pointer"
-              >
-                <span>Authorize with Deriv</span>
-                <ExternalLink className="w-3.5 h-3.5" />
-              </button>
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto shrink-0">
+                <button
+                  id="btn-deriv-open-token-tab"
+                  type="button"
+                  onClick={() => window.open('https://app.deriv.com/account/api-token', '_blank')}
+                  className="px-3 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs uppercase flex items-center justify-center space-x-1.5 transition shadow-lg shadow-red-600/20 cursor-pointer"
+                >
+                  <span>1. Open Deriv Token Page</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
 
             <div className="relative flex items-center justify-center my-1">
               <div className="border-t border-[#2B2F36] w-full" />
               <span className="bg-[#0B0E11] px-2 text-[10px] text-[#848E9C] uppercase font-mono tracking-wider shrink-0">
-                OR USE MANUAL API TOKEN
+                2. PASTE DERIV API TOKEN
               </span>
               <div className="border-t border-[#2B2F36] w-full" />
             </div>
@@ -316,21 +318,24 @@ export const DerivAuthorizeModal: React.FC<DerivAuthorizeModalProps> = ({
                   <Key className="w-3.5 h-3.5 text-blue-400" />
                   <span>Deriv API Read/Trade Token</span>
                 </label>
-                <a
-                  href="https://app.deriv.com/account/api-token"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[10px] text-blue-400 hover:text-blue-300 hover:underline flex items-center gap-1 font-mono"
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const text = await navigator.clipboard.readText();
+                      if (text) setToken(text.trim());
+                    } catch {}
+                  }}
+                  className="text-[10px] text-blue-400 hover:text-blue-300 hover:underline flex items-center gap-1 font-mono cursor-pointer"
                 >
-                  <span>app.deriv.com/account/api-token</span>
-                  <ExternalLink className="w-3 h-3" />
-                </a>
+                  <span>Paste from Clipboard</span>
+                </button>
               </div>
               <input
                 type="text"
                 value={token}
                 onChange={(e) => setToken(e.target.value)}
-                placeholder="Paste your Deriv API token (e.g. nG2k9LxP0mR1vW8)"
+                placeholder="Paste your 15-character token (e.g. nG2k9LxP0mR1vW8)"
                 className="w-full px-3 py-2 rounded bg-[#161A1E] border border-[#2B2F36] text-[#EAECEF] font-mono text-xs focus:outline-hidden focus:border-blue-500 transition"
               />
               <p className="text-[10px] text-[#848E9C] mt-1">
