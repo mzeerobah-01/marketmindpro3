@@ -279,6 +279,40 @@ export default function App() {
   const [isDerivAuthOpen, setIsDerivAuthOpen] = useState<boolean>(false);
   const [isMT5ConnectOpen, setIsMT5ConnectOpen] = useState<boolean>(false);
 
+  // Check for Deriv OAuth direct login callback on mount
+  useEffect(() => {
+    const oauthAccounts = derivWebSocket.handleOAuthCallback();
+    if (oauthAccounts && oauthAccounts.length > 0) {
+      const primary = oauthAccounts[0];
+      const isVirtual = primary.account.startsWith('VRTC');
+
+      // Auto-authenticate app session if needed
+      const derivUser: UserSession = {
+        id: `deriv_${primary.account}`,
+        email: `${primary.account.toLowerCase()}@deriv.trade`,
+        name: `Deriv Operator (${primary.account})`,
+        role: isVirtual ? 'Deriv Demo Trader' : 'Deriv Real Trader',
+        lastLogin: Date.now(),
+      };
+      localStorage.setItem('marketmind_auth_token', btoa(`deriv_${primary.account}_${Date.now()}`));
+      localStorage.setItem('marketmind_auth_user', JSON.stringify(derivUser));
+      setCurrentUser(derivUser);
+
+      setNotifications(prev => [
+        {
+          id: `oauth-${Date.now()}`,
+          title: 'Deriv OAuth Authorized',
+          message: `Successfully connected Deriv account ${primary.account} (${primary.currency}) via direct OAuth!`,
+          type: 'signal',
+          timestamp: Date.now(),
+          read: false,
+          dismissed: false,
+        },
+        ...prev,
+      ]);
+    }
+  }, []);
+
   const handleLogout = useCallback(async () => {
     await apiClient.logout();
     setCurrentUser(null);

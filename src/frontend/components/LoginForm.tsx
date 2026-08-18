@@ -146,7 +146,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, isDarkMode
             </div>
           )}
 
-          {/* Form */}
+          {/* Submit Button */}
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Email Field */}
             <div>
@@ -241,6 +241,28 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, isDarkMode
               )}
             </button>
           </form>
+
+          {/* Deriv Direct OAuth Divider & Button */}
+          <div className="my-5 flex items-center justify-center relative">
+            <div className="border-t border-[#2B2F36] w-full" />
+            <span className="bg-[#161A1E] px-3 text-[10px] text-[#848E9C] font-mono uppercase tracking-wider shrink-0">
+              OR LOG IN DIRECTLY
+            </span>
+            <div className="border-t border-[#2B2F36] w-full" />
+          </div>
+
+          <button
+            id="btn-login-deriv-oauth"
+            type="button"
+            onClick={() => {
+              const appId = localStorage.getItem('mmp_deriv_app_id') || '1089';
+              window.location.href = `https://oauth.deriv.com/oauth2/authorize?app_id=${appId}&l=en&brand=deriv`;
+            }}
+            className="w-full py-2.5 px-4 rounded-lg bg-[#FF444F] hover:bg-[#E53935] text-white font-bold text-xs tracking-wide uppercase transition duration-150 flex items-center justify-center space-x-2 shadow-lg shadow-red-500/20 cursor-pointer"
+          >
+            <span className="w-4 h-4 rounded bg-white text-[#FF444F] font-black text-[10px] flex items-center justify-center">d</span>
+            <span>Log In with Deriv Account</span>
+          </button>
 
           {/* Security Notice Footer */}
           <div className="mt-6 pt-4 border-t border-[#2B2F36] text-center">

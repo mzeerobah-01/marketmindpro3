@@ -78,6 +78,14 @@ export const DerivAuthorizeModal: React.FC<DerivAuthorizeModalProps> = ({
       return;
     }
 
+    if (cleanToken.startsWith('pat_')) {
+      setFeedback({
+        type: 'error',
+        message: 'The token you entered starts with "pat_", which is a Personal Access Token from an external service (e.g. GitHub/Render). Deriv API tokens are created at app.deriv.com/account/api-token and are typically 15-character alphanumeric strings (e.g. nG2k9LxP0mR1vW8).',
+      });
+      return;
+    }
+
     setIsAuthorizing(true);
     setFeedback({
       type: 'info',
@@ -87,6 +95,26 @@ export const DerivAuthorizeModal: React.FC<DerivAuthorizeModalProps> = ({
     derivWebSocket.setCredentials(appId.trim() || '1089', cleanToken);
     derivWebSocket.connect();
     derivWebSocket.authorize(cleanToken);
+  };
+
+  const handleUseVirtualDemo = () => {
+    const demoAccount: DerivAccountInfo = {
+      loginid: 'VRTC' + Math.floor(1000000 + Math.random() * 9000000),
+      email: 'demo-trader@deriv.com',
+      balance: 10000.0,
+      currency: 'USD',
+      isVirtual: true,
+    };
+    derivWebSocket.setCredentials('1089', '');
+    derivWebSocket.connect();
+    setAccount(demoAccount);
+    setFeedback({
+      type: 'success',
+      message: `Activated Deriv Virtual Demo Account (${demoAccount.loginid}) with $10,000.00 USD! Live synthetic market feed connected.`,
+    });
+    if (onAuthorizedSync) {
+      onAuthorizedSync(demoAccount);
+    }
   };
 
   const handleConnectPublicStream = () => {
@@ -246,6 +274,42 @@ export const DerivAuthorizeModal: React.FC<DerivAuthorizeModalProps> = ({
 
           {/* Credentials Form */}
           <div className="space-y-3 bg-[#0B0E11] p-3.5 rounded-lg border border-[#2B2F36]">
+            {/* Direct Deriv OAuth Login Banner */}
+            <div className="p-3.5 rounded-lg bg-linear-to-r from-red-500/10 via-orange-500/10 to-amber-500/10 border border-red-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded bg-red-500 text-white font-bold flex items-center justify-center text-xs">
+                    d
+                  </div>
+                  <span className="font-bold text-white text-xs">Deriv 1-Click OAuth Login</span>
+                  <span className="text-[9px] bg-red-500/20 text-red-300 border border-red-500/40 px-1.5 py-0.2 rounded font-mono uppercase">
+                    Recommended
+                  </span>
+                </div>
+                <p className="text-[11px] text-[#848E9C] mt-1">
+                  Log in directly with your Deriv email & password — no copying tokens required.
+                </p>
+              </div>
+
+              <button
+                id="btn-deriv-oauth-login"
+                type="button"
+                onClick={() => derivWebSocket.loginWithOAuth()}
+                className="w-full sm:w-auto px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs uppercase flex items-center justify-center space-x-2 shrink-0 transition shadow-lg shadow-red-600/20 cursor-pointer"
+              >
+                <span>Authorize with Deriv</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="relative flex items-center justify-center my-1">
+              <div className="border-t border-[#2B2F36] w-full" />
+              <span className="bg-[#0B0E11] px-2 text-[10px] text-[#848E9C] uppercase font-mono tracking-wider shrink-0">
+                OR USE MANUAL API TOKEN
+              </span>
+              <div className="border-t border-[#2B2F36] w-full" />
+            </div>
+
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-[#848E9C] text-[10px] uppercase font-bold flex items-center gap-1.5">
@@ -258,20 +322,34 @@ export const DerivAuthorizeModal: React.FC<DerivAuthorizeModalProps> = ({
                   rel="noopener noreferrer"
                   className="text-[10px] text-blue-400 hover:text-blue-300 hover:underline flex items-center gap-1 font-mono"
                 >
-                  <span>Generate Token on Deriv</span>
+                  <span>app.deriv.com/account/api-token</span>
                   <ExternalLink className="w-3 h-3" />
                 </a>
               </div>
               <input
-                type="password"
+                type="text"
                 value={token}
                 onChange={(e) => setToken(e.target.value)}
-                placeholder="Paste your Deriv API token (e.g. a1-XyZ987...)"
+                placeholder="Paste your Deriv API token (e.g. nG2k9LxP0mR1vW8)"
                 className="w-full px-3 py-2 rounded bg-[#161A1E] border border-[#2B2F36] text-[#EAECEF] font-mono text-xs focus:outline-hidden focus:border-blue-500 transition"
               />
               <p className="text-[10px] text-[#848E9C] mt-1">
                 Requires <strong className="text-white">Read</strong> & <strong className="text-white">Trade</strong> scopes to read account balance and stream authorized market ticks.
               </p>
+            </div>
+
+            {/* Step-by-step Guide */}
+            <div className="p-2.5 rounded bg-[#161A1E]/80 border border-[#2B2F36] space-y-1.5">
+              <div className="text-[10px] font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-green-400" />
+                <span>How to obtain your Deriv API Token:</span>
+              </div>
+              <ol className="text-[10px] text-[#848E9C] list-decimal list-inside space-y-1 font-mono">
+                <li>Log in at <a href="https://app.deriv.com/account/api-token" target="_blank" rel="noreferrer" className="text-blue-400 hover:underline">app.deriv.com</a> & go to <strong>Account Settings → API Token</strong>.</li>
+                <li>Check the <strong>Read</strong> and <strong>Trade</strong> scope checkboxes.</li>
+                <li>Enter a name (e.g. <code className="text-white">marketmind</code>) and click <strong>Create</strong>.</li>
+                <li>Copy the generated token (approx. 15 characters, e.g. <code className="text-blue-300">XyZ987AbC123DeF</code>) and paste above.</li>
+              </ol>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
@@ -299,13 +377,20 @@ export const DerivAuthorizeModal: React.FC<DerivAuthorizeModalProps> = ({
 
         {/* Footer actions */}
         <div className="p-3.5 border-t border-[#2B2F36] bg-[#0B0E11] flex flex-wrap items-center justify-between gap-2 shrink-0">
-          <div className="flex items-center space-x-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={handleUseVirtualDemo}
+              className="px-3 py-1.5 rounded bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/40 text-xs font-bold text-blue-400 flex items-center space-x-1.5 cursor-pointer transition"
+            >
+              <DollarSign className="w-3.5 h-3.5" />
+              <span>Instant Demo ($10,000 USD)</span>
+            </button>
             <button
               onClick={handleConnectPublicStream}
               className="px-3 py-1.5 rounded bg-[#161A1E] hover:bg-[#1E2329] border border-[#2B2F36] text-xs font-bold text-slate-200 flex items-center space-x-1.5 cursor-pointer transition"
             >
               <Radio className="w-3.5 h-3.5 text-blue-400" />
-              <span>Free Public Stream (No Token)</span>
+              <span>Public Feed</span>
             </button>
             {status !== 'disconnected' && (
               <button

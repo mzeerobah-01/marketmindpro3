@@ -9,6 +9,12 @@ export interface DerivAccountInfo {
   isVirtual: boolean;
 }
 
+export interface DerivOAuthAccount {
+  account: string;
+  token: string;
+  currency: string;
+}
+
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'authorized' | 'error';
 
 class DerivWebSocketService {
@@ -26,6 +32,7 @@ class DerivWebSocketService {
 
   private status: ConnectionStatus = 'disconnected';
   private accountInfo: DerivAccountInfo | null = null;
+  private oauthAccounts: DerivOAuthAccount[] = [];
 
   // Listeners
   private onTickListeners: ((tick: TickData, symbol: string) => void)[] = [];
@@ -38,8 +45,14 @@ class DerivWebSocketService {
     if (typeof window !== 'undefined') {
       const storedAppId = localStorage.getItem('mmp_deriv_app_id');
       const storedToken = localStorage.getItem('mmp_deriv_token');
+      const storedAccounts = localStorage.getItem('mmp_deriv_oauth_accounts');
       if (storedAppId) this.appId = storedAppId;
       if (storedToken) this.token = storedToken;
+      if (storedAccounts) {
+        try {
+          this.oauthAccounts = JSON.parse(storedAccounts);
+        } catch {}
+      }
     }
   }
 
@@ -57,6 +70,68 @@ class DerivWebSocketService {
 
   public getAppId(): string {
     return this.appId;
+  }
+
+  public getOAuthAccounts(): DerivOAuthAccount[] {
+    return this.oauthAccounts;
+  }
+
+  public getOAuthLoginUrl(): string {
+    const cleanAppId = this.appId || '1089';
+    return `https://oauth.deriv.com/oauth2/authorize?app_id=${cleanAppId}&l=en&brand=deriv`;
+  }
+
+  public loginWithOAuth(): void {
+    if (typeof window === 'undefined') return;
+    const url = this.getOAuthLoginUrl();
+    window.location.href = url;
+  }
+
+  public handleOAuthCallback(): DerivOAuthAccount[] | null {
+    if (typeof window === 'undefined') return null;
+    const search = window.location.search;
+    const hash = window.location.hash;
+    const queryString = search ? search.substring(1) : (hash.startsWith('#') ? hash.substring(1) : '');
+    if (!queryString) return null;
+
+    const params = new URLSearchParams(queryString);
+    const accounts: DerivOAuthAccount[] = [];
+
+    let i = 1;
+    while (params.has(`acct${i}`) && params.has(`token${i}`)) {
+      accounts.push({
+        account: params.get(`acct${i}`)!,
+        token: params.get(`token${i}`)!,
+        currency: params.get(`cur${i}`) || 'USD',
+      });
+      i++;
+    }
+
+    if (accounts.length === 0 && params.has('token1')) {
+      accounts.push({
+        account: params.get('acct1') || 'Deriv-User',
+        token: params.get('token1')!,
+        currency: params.get('cur1') || 'USD',
+      });
+    }
+
+    if (accounts.length > 0) {
+      this.oauthAccounts = accounts;
+      const primary = accounts[0];
+      this.setCredentials(this.appId, primary.token);
+      localStorage.setItem('mmp_deriv_oauth_accounts', JSON.stringify(accounts));
+
+      // Clean the URL without reload
+      const cleanUrl = window.location.origin + window.location.pathname;
+      window.history.replaceState({}, document.title, cleanUrl);
+
+      // Automatically connect and authorize
+      this.connect();
+      this.authorize(primary.token);
+      return accounts;
+    }
+
+    return null;
   }
 
   public getToken(): string {
