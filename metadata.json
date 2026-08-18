@@ -1,0 +1,6 @@
+{
+  "name": "MarketMindPro",
+  "description": "Professional Dual-Market Trading Analysis Platform for Deriv Synthetic Indices & MT5 Markets with real-time digit analysis, SMC indicators, and strategy ranking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
