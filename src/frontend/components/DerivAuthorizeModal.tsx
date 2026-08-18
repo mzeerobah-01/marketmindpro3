@@ -30,7 +30,7 @@ export const DerivAuthorizeModal: React.FC<DerivAuthorizeModalProps> = ({
   isDarkMode = true,
   onAuthorizedSync,
 }) => {
-  const [appId, setAppId] = useState(() => derivWebSocket.getAppId() || '1089');
+  const [appId, setAppId] = useState(() => derivWebSocket.getAppId() || '349jsjBvUj98FG3buzt3a');
   const [token, setToken] = useState(() => derivWebSocket.getToken() || '');
   const [status, setStatus] = useState<ConnectionStatus>(() => derivWebSocket.getStatus());
   const [account, setAccount] = useState<DerivAccountInfo | null>(() => derivWebSocket.getAccountInfo());
