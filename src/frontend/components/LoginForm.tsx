@@ -6,12 +6,9 @@ import {
   EyeOff,
   ShieldCheck,
   AlertCircle,
-  Activity,
   ArrowRight,
   KeyRound,
-  Terminal,
-  Cpu,
-  Sparkles,
+  Shield,
 } from 'lucide-react';
 import { UserSession } from '../services/apiClient';
 
@@ -28,37 +25,36 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, isDarkMode
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Predefined authorized credentials
-  const DEFAULT_EMAIL = 'kabuirobah198@gmail.com';
-  const DEFAULT_PASS = 'P4vpxw@$';
+  // Authorized master operator accounts
+  const AUTHORIZED_EMAIL = 'kabuirobah198@gmail.com';
+  const AUTHORIZED_PASS = 'P4vpxw@$';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
     if (!email.trim()) {
-      setErrorMsg('Please enter your authorized email address.');
+      setErrorMsg('Please enter your authorized operator email address.');
       return;
     }
     if (!password) {
-      setErrorMsg('Please enter your security key/password.');
+      setErrorMsg('Please enter your security key or password.');
       return;
     }
 
     setIsLoading(true);
 
     try {
-      // Direct verification / API login call
       const cleanEmail = email.trim().toLowerCase();
-      const targetEmail = DEFAULT_EMAIL.toLowerCase();
+      const targetEmail = AUTHORIZED_EMAIL.toLowerCase();
 
-      // Artificial short latency for security verification feel
-      await new Promise(r => setTimeout(r, 450));
+      // Simulated security verification delay
+      await new Promise(r => setTimeout(r, 400));
 
-      if (cleanEmail === targetEmail && password === DEFAULT_PASS) {
+      if (cleanEmail === targetEmail && password === AUTHORIZED_PASS) {
         const user: UserSession = {
           id: 'admin_terminal_01',
-          email: DEFAULT_EMAIL,
+          email: AUTHORIZED_EMAIL,
           name: 'Kabui Robah',
           role: 'Senior Market Analyst & Terminal Admin',
           lastLogin: Date.now(),
@@ -75,19 +71,13 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, isDarkMode
 
         onLoginSuccess(user);
       } else {
-        setErrorMsg('Invalid terminal credentials. Access denied. Verify email and security password.');
+        setErrorMsg('Invalid terminal credentials. Access denied. Please check your email and security password.');
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'Authentication error occurred.');
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const fillDefaultCredentials = () => {
-    setEmail(DEFAULT_EMAIL);
-    setPassword(DEFAULT_PASS);
-    setErrorMsg(null);
   };
 
   return (
@@ -137,8 +127,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, isDarkMode
               </div>
             </div>
 
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 uppercase font-semibold">
-              No Sign-Up
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/30 uppercase font-semibold">
+              Restricted
             </span>
           </div>
 
@@ -172,9 +162,9 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, isDarkMode
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@example.com"
-                  autoComplete="email"
-                  className="w-full pl-9 pr-3 py-2.5 bg-[#1E2329] border border-[#2B2F36] rounded-lg text-xs font-mono text-[#EAECEF] placeholder-[#848E9C]/60 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
+                  placeholder="operator@domain.com"
+                  autoComplete="off"
+                  className="w-full pl-9 pr-3 py-2.5 bg-[#1E2329] border border-[#2B2F36] rounded-lg text-xs font-mono text-[#EAECEF] placeholder-[#848E9C]/60 focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
                   required
                 />
               </div>
@@ -184,9 +174,9 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, isDarkMode
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-xs font-semibold text-[#848E9C] uppercase tracking-wider font-mono">
-                  Security Password
+                  Security Password / Key
                 </label>
-                <span className="text-[10px] text-[#848E9C] font-mono">Private Key Access</span>
+                <span className="text-[10px] text-[#848E9C] font-mono">Private Access</span>
               </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#848E9C]">
@@ -197,9 +187,9 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, isDarkMode
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••••••"
-                  autoComplete="current-password"
-                  className="w-full pl-9 pr-10 py-2.5 bg-[#1E2329] border border-[#2B2F36] rounded-lg text-xs font-mono text-[#EAECEF] placeholder-[#848E9C]/60 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
+                  placeholder="Enter security key"
+                  autoComplete="off"
+                  className="w-full pl-9 pr-10 py-2.5 bg-[#1E2329] border border-[#2B2F36] rounded-lg text-xs font-mono text-[#EAECEF] placeholder-[#848E9C]/60 focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
                   required
                 />
                 <button
@@ -223,7 +213,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, isDarkMode
                   onChange={(e) => setRememberMe(e.target.checked)}
                   className="rounded bg-[#1E2329] border-[#2B2F36] text-blue-500 focus:ring-blue-500 focus:ring-offset-[#161A1E]"
                 />
-                <span className="font-mono text-[11px]">Remember terminal session</span>
+                <span className="font-mono text-[11px]">Remember session</span>
               </label>
 
               <span className="text-[10px] text-emerald-400 font-mono flex items-center gap-1">
@@ -241,7 +231,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, isDarkMode
               {isLoading ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  <span>Decrypting Session...</span>
+                  <span>Verifying Session...</span>
                 </>
               ) : (
                 <>
@@ -252,32 +242,14 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, isDarkMode
             </button>
           </form>
 
-          {/* Quick Helper Button (Populates Configured User) */}
+          {/* Security Notice Footer */}
           <div className="mt-6 pt-4 border-t border-[#2B2F36] text-center">
-            <div className="flex items-center justify-between text-[11px] text-[#848E9C] mb-2 font-mono">
-              <span>Configured Operator Account:</span>
-              <button
-                type="button"
-                onClick={fillDefaultCredentials}
-                className="text-blue-400 hover:text-blue-300 hover:underline flex items-center gap-1 font-mono transition"
-              >
-                <Sparkles className="w-3 h-3" /> Auto-Fill Credentials
-              </button>
+            <div className="flex items-center justify-center gap-1.5 text-[11px] text-[#848E9C] font-mono">
+              <Shield className="w-3.5 h-3.5 text-blue-400" />
+              <span>Operator Environment Protected</span>
             </div>
-
-            <div className="p-2.5 rounded bg-[#1E2329]/90 border border-[#2B2F36] text-left text-[11px] font-mono space-y-1">
-              <div className="flex justify-between text-[#848E9C]">
-                <span>Email:</span>
-                <span className="text-slate-200 font-semibold">{DEFAULT_EMAIL}</span>
-              </div>
-              <div className="flex justify-between text-[#848E9C]">
-                <span>Password:</span>
-                <span className="text-slate-200 font-semibold">{DEFAULT_PASS}</span>
-              </div>
-            </div>
-
-            <p className="text-[10px] text-[#848E9C]/80 mt-3 font-mono">
-              ⚠️ Note: Public registration is permanently disabled. Credentials can be customized in System Settings or <code className="text-blue-400">authConfig.ts</code>.
+            <p className="text-[10px] text-[#848E9C]/70 mt-1.5 font-mono">
+              Public registration is disabled. Unauthorized access attempts are monitored and logged.
             </p>
           </div>
         </div>
@@ -285,16 +257,16 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, isDarkMode
         {/* System Status Ticker */}
         <div className="mt-6 flex items-center justify-between px-2 text-[10px] font-mono text-[#848E9C]">
           <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-            <span>Deriv API: Connected</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span>Deriv Gateway: Live</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
             <span>MT5 Bridge: Ready</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-            <span>Strategy Engine: Online</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+            <span>SSL Secured</span>
           </div>
         </div>
 

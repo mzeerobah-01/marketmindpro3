@@ -26,6 +26,8 @@ interface DashboardViewProps {
   strategyScores: StrategyScore[];
   onSelectMarket: (market: MarketAsset) => void;
   onNavigateTab: (tab: any) => void;
+  onOpenDerivAuth?: () => void;
+  onOpenMT5Connect?: () => void;
   isDarkMode?: boolean;
 }
 
@@ -38,6 +40,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   strategyScores,
   onSelectMarket,
   onNavigateTab,
+  onOpenDerivAuth,
+  onOpenMT5Connect,
   isDarkMode = true,
 }) => {
   return (
@@ -59,13 +63,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <span className="text-[10px] text-green-400">Connected • WebSocket</span>
               </div>
             </div>
-            <button
-              onClick={() => onNavigateTab('deriv')}
-              className="text-xs text-blue-400 hover:text-blue-300 flex items-center space-x-1 uppercase font-bold"
-            >
-              <span>Terminal</span>
-              <ArrowRight className="w-3 h-3" />
-            </button>
+            <div className="flex items-center space-x-1.5">
+              {onOpenDerivAuth && (
+                <button
+                  onClick={onOpenDerivAuth}
+                  className="px-2 py-0.5 rounded bg-green-500/15 hover:bg-green-500/25 border border-green-500/40 text-green-400 text-[10px] font-bold uppercase flex items-center space-x-1 cursor-pointer transition"
+                >
+                  <Zap className="w-3 h-3" />
+                  <span>Authorize</span>
+                </button>
+              )}
+              <button
+                onClick={() => onNavigateTab('deriv')}
+                className="text-xs text-blue-400 hover:text-blue-300 flex items-center space-x-0.5 uppercase font-bold"
+              >
+                <span>Terminal</span>
+                <ArrowRight className="w-3 h-3" />
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2 pt-1">
@@ -106,13 +121,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <span className="text-[10px] text-blue-400">Connected • Bridge Feed</span>
               </div>
             </div>
-            <button
-              onClick={() => onNavigateTab('mt5')}
-              className="text-xs text-blue-400 hover:text-blue-300 flex items-center space-x-1 uppercase font-bold"
-            >
-              <span>Terminal</span>
-              <ArrowRight className="w-3 h-3" />
-            </button>
+            <div className="flex items-center space-x-1.5">
+              {onOpenMT5Connect && (
+                <button
+                  onClick={onOpenMT5Connect}
+                  className="px-2 py-0.5 rounded bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/40 text-blue-400 text-[10px] font-bold uppercase flex items-center space-x-1 cursor-pointer transition"
+                >
+                  <Cpu className="w-3 h-3" />
+                  <span>Connect</span>
+                </button>
+              )}
+              <button
+                onClick={() => onNavigateTab('mt5')}
+                className="text-xs text-blue-400 hover:text-blue-300 flex items-center space-x-0.5 uppercase font-bold"
+              >
+                <span>Terminal</span>
+                <ArrowRight className="w-3 h-3" />
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2 pt-1">

@@ -29,6 +29,8 @@ interface HeaderProps {
   isDarkMode: boolean;
   onToggleDarkMode: () => void;
   onOpenSettings: () => void;
+  onOpenDerivAuth?: () => void;
+  onOpenMT5Connect?: () => void;
   currentUser?: UserSession | null;
   onLogout?: () => void;
 }
@@ -42,6 +44,8 @@ export const Header: React.FC<HeaderProps> = ({
   isDarkMode,
   onToggleDarkMode,
   onOpenSettings,
+  onOpenDerivAuth,
+  onOpenMT5Connect,
   currentUser,
   onLogout,
 }) => {
@@ -93,10 +97,10 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Account Cards (Deriv & MT5) */}
+        {/* Account Cards & Authorize/Connect Actions (Deriv & MT5) */}
         <div className="flex items-center space-x-2 sm:space-x-3">
-          {/* Deriv Account Card */}
-          <div className="relative">
+          {/* Deriv Account & Authorize */}
+          <div className="relative flex items-center gap-1.5">
             <button
               id="btn-deriv-account-menu"
               onClick={() => setShowAccountDropdown(showAccountDropdown === 'deriv' ? null : 'deriv')}
@@ -117,44 +121,76 @@ export const Header: React.FC<HeaderProps> = ({
               <ChevronDown className="w-3.5 h-3.5 text-[#848E9C] ml-1" />
             </button>
 
+            {onOpenDerivAuth && (
+              <button
+                id="btn-quick-authorize-deriv"
+                onClick={onOpenDerivAuth}
+                className="hidden sm:flex items-center space-x-1 px-2.5 py-1.5 rounded bg-green-500/15 hover:bg-green-500/25 border border-green-500/40 text-green-400 font-mono text-[11px] font-bold uppercase transition tracking-tight cursor-pointer"
+                title="Authorize Deriv API Token"
+              >
+                <Zap className="w-3 h-3 text-green-400" />
+                <span>Authorize</span>
+              </button>
+            )}
+
             {showAccountDropdown === 'deriv' && (
               <div
-                className={`absolute right-0 top-12 z-50 w-56 p-3 rounded-lg border shadow-2xl ${
+                className={`absolute right-0 top-12 z-50 w-64 p-3 rounded-lg border shadow-2xl ${
                   isDarkMode ? 'bg-[#161A1E] border-[#2B2F36] text-[#EAECEF]' : 'bg-white border-slate-200 text-slate-900'
                 }`}
               >
-                <div className="text-[10px] font-bold text-[#848E9C] uppercase tracking-wider mb-2 border-b border-[#2B2F36] pb-1">
-                  Deriv Account State
+                <div className="flex items-center justify-between border-b border-[#2B2F36] pb-1.5 mb-2">
+                  <div className="text-[10px] font-bold text-[#848E9C] uppercase tracking-wider">
+                    Deriv Live Gateway
+                  </div>
+                  <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-green-500/10 text-green-400 border border-green-500/30">
+                    WebSocket Live
+                  </span>
                 </div>
                 <div className="space-y-1.5 font-mono text-[11px]">
                   <div className="flex justify-between py-1 border-b border-[#2B2F36]/60">
                     <span className="text-[#848E9C]">Demo Balance:</span>
-                    <span className="font-bold text-white">${accounts.deriv.demoBalance.toLocaleString()}</span>
+                    <span className="font-bold text-white">${accounts.deriv.demoBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                   </div>
                   <div className="flex justify-between py-1 border-b border-[#2B2F36]/60">
                     <span className="text-[#848E9C]">Real Balance:</span>
-                    <span className="font-bold text-green-400">${accounts.deriv.realBalance.toLocaleString()}</span>
+                    <span className="font-bold text-green-400">${accounts.deriv.realBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                   </div>
                   <div className="flex justify-between py-1 text-[10px] text-[#848E9C]">
                     <span>Last Sync:</span>
                     <span>{accounts.deriv.lastSync}</span>
                   </div>
                 </div>
-                <button
-                  onClick={() => {
-                    onToggleAccountMode('deriv');
-                    setShowAccountDropdown(null);
-                  }}
-                  className="mt-2.5 w-full py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold font-mono uppercase tracking-wider transition"
-                >
-                  Switch to {accounts.deriv.activeAccount === 'demo' ? 'Real' : 'Demo'}
-                </button>
+
+                <div className="mt-3 space-y-1.5">
+                  {onOpenDerivAuth && (
+                    <button
+                      onClick={() => {
+                        setShowAccountDropdown(null);
+                        onOpenDerivAuth();
+                      }}
+                      className="w-full py-1.5 rounded bg-green-600 hover:bg-green-500 text-white text-xs font-bold font-mono uppercase tracking-wider flex items-center justify-center space-x-1.5 transition cursor-pointer"
+                    >
+                      <Zap className="w-3.5 h-3.5" />
+                      <span>Authorize Deriv Account</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      onToggleAccountMode('deriv');
+                      setShowAccountDropdown(null);
+                    }}
+                    className="w-full py-1.5 rounded bg-[#1E2329] hover:bg-[#2B2F36] border border-[#2B2F36] text-slate-200 text-xs font-bold font-mono uppercase tracking-wider transition cursor-pointer"
+                  >
+                    Switch to {accounts.deriv.activeAccount === 'demo' ? 'Real Account' : 'Demo Account'}
+                  </button>
+                </div>
               </div>
             )}
           </div>
 
-          {/* MT5 Account Card */}
-          <div className="relative">
+          {/* MT5 Account & Connect */}
+          <div className="relative flex items-center gap-1.5">
             <button
               id="btn-mt5-account-menu"
               onClick={() => setShowAccountDropdown(showAccountDropdown === 'mt5' ? null : 'mt5')}
@@ -162,11 +198,11 @@ export const Header: React.FC<HeaderProps> = ({
                 isDarkMode ? 'bg-[#1E2329] border-[#2B2F36] hover:border-slate-600' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
               }`}
             >
-              <span className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_#10b981]" />
+              <span className="w-2 h-2 rounded-full bg-blue-400 shadow-[0_0_8px_#3b82f6]" />
               <div>
                 <div className="text-[10px] text-[#848E9C] font-semibold uppercase flex items-center space-x-1">
                   <span>MT5:</span>
-                  <span className="uppercase text-[9px] text-green-400 font-bold">{accounts.mt5.activeAccount}</span>
+                  <span className="uppercase text-[9px] text-blue-400 font-bold">{accounts.mt5.activeAccount}</span>
                 </div>
                 <div className="font-mono font-bold text-white text-[11px]">
                   ${(accounts.mt5.activeAccount === 'demo' ? accounts.mt5.demoBalance : accounts.mt5.realBalance).toLocaleString('en-US', { minimumFractionDigits: 2 })}
@@ -175,38 +211,70 @@ export const Header: React.FC<HeaderProps> = ({
               <ChevronDown className="w-3.5 h-3.5 text-[#848E9C] ml-1" />
             </button>
 
+            {onOpenMT5Connect && (
+              <button
+                id="btn-quick-connect-mt5"
+                onClick={onOpenMT5Connect}
+                className="hidden sm:flex items-center space-x-1 px-2.5 py-1.5 rounded bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/40 text-blue-400 font-mono text-[11px] font-bold uppercase transition tracking-tight cursor-pointer"
+                title="Connect MetaTrader 5 Account"
+              >
+                <Radio className="w-3 h-3 text-blue-400" />
+                <span>Connect MT5</span>
+              </button>
+            )}
+
             {showAccountDropdown === 'mt5' && (
               <div
-                className={`absolute right-0 top-12 z-50 w-56 p-3 rounded-lg border shadow-2xl ${
+                className={`absolute right-0 top-12 z-50 w-64 p-3 rounded-lg border shadow-2xl ${
                   isDarkMode ? 'bg-[#161A1E] border-[#2B2F36] text-[#EAECEF]' : 'bg-white border-slate-200 text-slate-900'
                 }`}
               >
-                <div className="text-[10px] font-bold text-[#848E9C] uppercase tracking-wider mb-2 border-b border-[#2B2F36] pb-1">
-                  MT5 Account State
+                <div className="flex items-center justify-between border-b border-[#2B2F36] pb-1.5 mb-2">
+                  <div className="text-[10px] font-bold text-[#848E9C] uppercase tracking-wider">
+                    MT5 Terminal State
+                  </div>
+                  <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-blue-500/10 text-blue-400 border border-blue-500/30">
+                    Bridge Online
+                  </span>
                 </div>
                 <div className="space-y-1.5 font-mono text-[11px]">
                   <div className="flex justify-between py-1 border-b border-[#2B2F36]/60">
                     <span className="text-[#848E9C]">Demo Balance:</span>
-                    <span className="font-bold text-white">${accounts.mt5.demoBalance.toLocaleString()}</span>
+                    <span className="font-bold text-white">${accounts.mt5.demoBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                   </div>
                   <div className="flex justify-between py-1 border-b border-[#2B2F36]/60">
                     <span className="text-[#848E9C]">Real Balance:</span>
-                    <span className="font-bold text-green-400">${accounts.mt5.realBalance.toLocaleString()}</span>
+                    <span className="font-bold text-blue-400">${accounts.mt5.realBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                   </div>
                   <div className="flex justify-between py-1 text-[10px] text-[#848E9C]">
                     <span>Last Sync:</span>
                     <span>{accounts.mt5.lastSync}</span>
                   </div>
                 </div>
-                <button
-                  onClick={() => {
-                    onToggleAccountMode('mt5');
-                    setShowAccountDropdown(null);
-                  }}
-                  className="mt-2.5 w-full py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold font-mono uppercase tracking-wider transition"
-                >
-                  Switch to {accounts.mt5.activeAccount === 'demo' ? 'Real' : 'Demo'}
-                </button>
+
+                <div className="mt-3 space-y-1.5">
+                  {onOpenMT5Connect && (
+                    <button
+                      onClick={() => {
+                        setShowAccountDropdown(null);
+                        onOpenMT5Connect();
+                      }}
+                      className="w-full py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold font-mono uppercase tracking-wider flex items-center justify-center space-x-1.5 transition cursor-pointer"
+                    >
+                      <Radio className="w-3.5 h-3.5" />
+                      <span>Connect MT5 Terminal</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      onToggleAccountMode('mt5');
+                      setShowAccountDropdown(null);
+                    }}
+                    className="w-full py-1.5 rounded bg-[#1E2329] hover:bg-[#2B2F36] border border-[#2B2F36] text-slate-200 text-xs font-bold font-mono uppercase tracking-wider transition cursor-pointer"
+                  >
+                    Switch to {accounts.mt5.activeAccount === 'demo' ? 'Real Account' : 'Demo Account'}
+                  </button>
+                </div>
               </div>
             )}
           </div>

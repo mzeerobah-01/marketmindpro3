@@ -29,6 +29,7 @@ interface DerivAnalysisViewProps {
   marketCondition: string;
   smcOverlays: SmcOverlay[];
   onExecuteTrade: (signal: ActiveSignal) => void;
+  onOpenDerivAuth?: () => void;
   isDarkMode?: boolean;
 }
 
@@ -47,6 +48,7 @@ export const DerivAnalysisView: React.FC<DerivAnalysisViewProps> = ({
   marketCondition,
   smcOverlays,
   onExecuteTrade,
+  onOpenDerivAuth,
   isDarkMode = true,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -105,8 +107,20 @@ export const DerivAnalysisView: React.FC<DerivAnalysisViewProps> = ({
             </div>
           </div>
 
-          {/* Search & Category Pills */}
+          {/* Search, Category Pills & Authorize Button */}
           <div className="flex flex-wrap items-center gap-2">
+            {onOpenDerivAuth && (
+              <button
+                id="btn-deriv-workspace-authorize"
+                onClick={onOpenDerivAuth}
+                className="px-2.5 py-1.5 rounded bg-green-500/15 hover:bg-green-500/25 border border-green-500/40 text-green-400 font-mono text-[11px] font-bold uppercase flex items-center space-x-1.5 transition cursor-pointer"
+                title="Authorize Deriv API Token"
+              >
+                <Zap className="w-3.5 h-3.5 text-green-400" />
+                <span>Authorize Deriv</span>
+              </button>
+            )}
+
             <div className="relative">
               <Search className="w-3.5 h-3.5 text-[#848E9C] absolute left-2.5 top-2" />
               <input

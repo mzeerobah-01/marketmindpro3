@@ -27,6 +27,7 @@ interface MT5AnalysisViewProps {
   marketCondition: string;
   smcOverlays: SmcOverlay[];
   onExecuteTrade: (signal: ActiveSignal) => void;
+  onOpenMT5Connect?: () => void;
   isDarkMode?: boolean;
 }
 
@@ -41,6 +42,7 @@ export const MT5AnalysisView: React.FC<MT5AnalysisViewProps> = ({
   marketCondition,
   smcOverlays,
   onExecuteTrade,
+  onOpenMT5Connect,
   isDarkMode = true,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -107,8 +109,20 @@ export const MT5AnalysisView: React.FC<MT5AnalysisViewProps> = ({
             </div>
           </div>
 
-          {/* Search & Category Pills */}
+          {/* Search, Category Pills & Connect MT5 Button */}
           <div className="flex flex-wrap items-center gap-2">
+            {onOpenMT5Connect && (
+              <button
+                id="btn-mt5-workspace-connect"
+                onClick={onOpenMT5Connect}
+                className="px-2.5 py-1.5 rounded bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/40 text-blue-400 font-mono text-[11px] font-bold uppercase flex items-center space-x-1.5 transition cursor-pointer"
+                title="Connect MetaTrader 5 Account"
+              >
+                <Cpu className="w-3.5 h-3.5 text-blue-400" />
+                <span>Connect MT5</span>
+              </button>
+            )}
+
             <div className="relative">
               <Search className="w-3.5 h-3.5 text-[#848E9C] absolute left-2.5 top-2" />
               <input

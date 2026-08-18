@@ -29,6 +29,8 @@ import { SignalHistoryView } from './components/SignalHistoryView';
 import { StrategyPerformanceView } from './components/StrategyPerformanceView';
 import { StrategyLibraryView } from './components/StrategyLibraryView';
 import { SettingsModal } from './components/SettingsModal';
+import { DerivAuthorizeModal } from './components/DerivAuthorizeModal';
+import { MT5ConnectModal } from './components/MT5ConnectModal';
 import { LoginForm } from './components/LoginForm';
 import { Footer } from './components/Footer';
 import { apiClient, UserSession } from './services/apiClient';
@@ -274,6 +276,8 @@ export default function App() {
   const [currentTab, setCurrentTab] = useState<NavTab>('dashboard');
   const [isDarkMode, setIsDarkMode] = useState<boolean>(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
+  const [isDerivAuthOpen, setIsDerivAuthOpen] = useState<boolean>(false);
+  const [isMT5ConnectOpen, setIsMT5ConnectOpen] = useState<boolean>(false);
 
   const handleLogout = useCallback(async () => {
     await apiClient.logout();
@@ -302,6 +306,36 @@ export default function App() {
     marketDataLive: true,
     analysisEngineRunning: true,
   });
+
+  const handleDerivAuthorizedSync = useCallback((derivAcc: any) => {
+    setAccounts(prev => ({
+      ...prev,
+      deriv: {
+        ...prev.deriv,
+        demoBalance: derivAcc.isVirtual ? derivAcc.balance : prev.deriv.demoBalance,
+        realBalance: !derivAcc.isVirtual ? derivAcc.balance : prev.deriv.realBalance,
+        currency: derivAcc.currency || 'USD',
+        activeAccount: derivAcc.isVirtual ? 'demo' : 'real',
+        connected: true,
+        lastSync: 'Just now',
+      },
+    }));
+  }, []);
+
+  const handleMT5AccountSync = useCallback((mt5Acc: any) => {
+    setAccounts(prev => ({
+      ...prev,
+      mt5: {
+        ...prev.mt5,
+        demoBalance: mt5Acc.demoBalance,
+        realBalance: mt5Acc.realBalance,
+        currency: mt5Acc.currency || 'USD',
+        activeAccount: mt5Acc.activeAccount,
+        connected: true,
+        lastSync: 'Just now',
+      },
+    }));
+  }, []);
 
   // Risk Management state
   const [riskSettings, setRiskSettings] = useState<RiskManagementSettings>({
@@ -759,6 +793,8 @@ export default function App() {
         isDarkMode={isDarkMode}
         onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenDerivAuth={() => setIsDerivAuthOpen(true)}
+        onOpenMT5Connect={() => setIsMT5ConnectOpen(true)}
         currentUser={currentUser}
         onLogout={handleLogout}
       />
@@ -790,6 +826,8 @@ export default function App() {
               else setSelectedMt5Market(m);
             }}
             onNavigateTab={tab => setCurrentTab(tab)}
+            onOpenDerivAuth={() => setIsDerivAuthOpen(true)}
+            onOpenMT5Connect={() => setIsMT5ConnectOpen(true)}
             isDarkMode={isDarkMode}
           />
         )}
@@ -810,6 +848,7 @@ export default function App() {
             marketCondition={marketCondition}
             smcOverlays={smcOverlays}
             onExecuteTrade={handleExecuteTrade}
+            onOpenDerivAuth={() => setIsDerivAuthOpen(true)}
             isDarkMode={isDarkMode}
           />
         )}
@@ -826,6 +865,7 @@ export default function App() {
             marketCondition={marketCondition}
             smcOverlays={smcOverlays}
             onExecuteTrade={handleExecuteTrade}
+            onOpenMT5Connect={() => setIsMT5ConnectOpen(true)}
             isDarkMode={isDarkMode}
           />
         )}
@@ -889,12 +929,26 @@ export default function App() {
         )}
       </main>
 
-      {/* 5. Settings Modal */}
+      {/* 5. Modals */}
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         isDarkMode={isDarkMode}
         currentUser={currentUser}
+      />
+
+      <DerivAuthorizeModal
+        isOpen={isDerivAuthOpen}
+        onClose={() => setIsDerivAuthOpen(false)}
+        isDarkMode={isDarkMode}
+        onAuthorizedSync={handleDerivAuthorizedSync}
+      />
+
+      <MT5ConnectModal
+        isOpen={isMT5ConnectOpen}
+        onClose={() => setIsMT5ConnectOpen(false)}
+        isDarkMode={isDarkMode}
+        onMT5AccountSync={handleMT5AccountSync}
       />
 
       {/* 6. Footer */}
