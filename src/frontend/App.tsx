@@ -273,11 +273,26 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<UserSession | null>(() => {
     return apiClient.getStoredUser();
   });
-  const [currentTab, setCurrentTab] = useState<NavTab>('dashboard');
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(true);
+  const [currentTab, setCurrentTab] = useState<NavTab>(() => {
+    const saved = localStorage.getItem('marketmind_current_tab');
+    return (saved as NavTab) || 'dashboard';
+  });
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    const saved = localStorage.getItem('marketmind_dark_mode');
+    return saved !== null ? saved === 'true' : true;
+  });
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [isDerivAuthOpen, setIsDerivAuthOpen] = useState<boolean>(false);
   const [isMT5ConnectOpen, setIsMT5ConnectOpen] = useState<boolean>(false);
+
+  // Persist tab & dark mode on change
+  useEffect(() => {
+    localStorage.setItem('marketmind_current_tab', currentTab);
+  }, [currentTab]);
+
+  useEffect(() => {
+    localStorage.setItem('marketmind_dark_mode', String(isDarkMode));
+  }, [isDarkMode]);
 
   // Check for Deriv OAuth direct login callback on mount
   useEffect(() => {
@@ -318,28 +333,43 @@ export default function App() {
     setCurrentUser(null);
   }, []);
 
-  // Accounts state
-  const [accounts, setAccounts] = useState<AccountState>({
-    deriv: {
-      demoBalance: 10000.0,
-      realBalance: 1250.0,
-      currency: 'USD',
-      connected: true,
-      activeAccount: 'demo',
-      lastSync: 'Just now',
-    },
-    mt5: {
-      demoBalance: 25000.0,
-      realBalance: 2500.0,
-      currency: 'USD',
-      connected: true,
-      activeAccount: 'demo',
-      lastSync: 'Just now',
-    },
-    systemStatus: 'operational',
-    marketDataLive: true,
-    analysisEngineRunning: true,
+  // Accounts state with localStorage persistence
+  const [accounts, setAccounts] = useState<AccountState>(() => {
+    const saved = localStorage.getItem('marketmind_accounts');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        // fallback
+      }
+    }
+    return {
+      deriv: {
+        demoBalance: 10000.0,
+        realBalance: 1250.0,
+        currency: 'USD',
+        connected: true,
+        activeAccount: 'demo',
+        lastSync: 'Just now',
+      },
+      mt5: {
+        demoBalance: 25000.0,
+        realBalance: 2500.0,
+        currency: 'USD',
+        connected: true,
+        activeAccount: 'demo',
+        lastSync: 'Just now',
+      },
+      systemStatus: 'operational',
+      marketDataLive: true,
+      analysisEngineRunning: true,
+    };
   });
+
+  // Save accounts to localStorage on every change
+  useEffect(() => {
+    localStorage.setItem('marketmind_accounts', JSON.stringify(accounts));
+  }, [accounts]);
 
   const handleDerivAuthorizedSync = useCallback((derivAcc: any) => {
     setAccounts(prev => ({
@@ -371,26 +401,50 @@ export default function App() {
     }));
   }, []);
 
-  // Risk Management state
-  const [riskSettings, setRiskSettings] = useState<RiskManagementSettings>({
-    accountType: 'deriv',
-    riskPercentage: 2.0,
-    maxDailyLoss: 100.0,
-    dailyProfitTarget: 250.0,
-    plannedTradesCount: 10,
-    stakeMethod: 'percentage',
-    circuitBreakerEnabled: true,
-    consecutiveLossLimit: 3,
-    maxDrawdownLimit: 6.0,
-    currentDrawdown: 1.8,
-    dailyLossTotal: 0.0,
-    dailyProfitTotal: 65.0,
-    consecutiveLosses: 0,
-    isLocked: false,
+  // Risk Management state with localStorage persistence
+  const [riskSettings, setRiskSettings] = useState<RiskManagementSettings>(() => {
+    const saved = localStorage.getItem('marketmind_risk_settings');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return {
+      accountType: 'deriv',
+      riskPercentage: 2.0,
+      maxDailyLoss: 100.0,
+      dailyProfitTarget: 250.0,
+      plannedTradesCount: 10,
+      stakeMethod: 'percentage',
+      circuitBreakerEnabled: true,
+      consecutiveLossLimit: 3,
+      maxDrawdownLimit: 6.0,
+      currentDrawdown: 1.8,
+      dailyLossTotal: 0.0,
+      dailyProfitTotal: 65.0,
+      consecutiveLosses: 0,
+      isLocked: false,
+    };
   });
 
-  // Strategies Catalog
-  const [strategies, setStrategies] = useState<StrategyDefinition[]>(initialStrategyCatalog);
+  useEffect(() => {
+    localStorage.setItem('marketmind_risk_settings', JSON.stringify(riskSettings));
+  }, [riskSettings]);
+
+  // Strategies Catalog with persistence
+  const [strategies, setStrategies] = useState<StrategyDefinition[]>(() => {
+    const saved = localStorage.getItem('marketmind_strategies');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return initialStrategyCatalog;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('marketmind_strategies', JSON.stringify(strategies));
+  }, [strategies]);
 
   // Market selection
   const [derivMarkets] = useState<MarketAsset[]>(INITIAL_DERIV_MARKETS);
@@ -413,7 +467,7 @@ export default function App() {
   // Digit Sample Size (25, 50, 100, 500, 1000)
   const [digitSampleSize, setDigitSampleSize] = useState<number>(100);
 
-  // Notifications & Signal History
+  // Notifications & Signal History with persistence
   const [notifications, setNotifications] = useState<AppNotification[]>([
     {
       id: 'notif-1',
@@ -435,56 +489,68 @@ export default function App() {
     },
   ]);
 
-  const [signalHistory, setSignalHistory] = useState<SignalHistoryItem[]>([
-    {
-      id: 'hist-1',
-      platform: 'deriv',
-      marketName: 'Volatility 75 Index',
-      strategyName: 'SMC Order Block (Bullish Demand)',
-      signalType: 'RISE',
-      strength: 94,
-      entryPrice: 4518.20,
-      generatedAt: Date.now() - 300000,
-      result: 'WIN',
-      profitAmount: 18.5,
-    },
-    {
-      id: 'hist-2',
-      platform: 'deriv',
-      marketName: 'Volatility 100 Index',
-      strategyName: 'Over/Matches Marubozu Breakout',
-      signalType: 'MATCHES',
-      strength: 88,
-      entryPrice: 12440.5,
-      generatedAt: Date.now() - 600000,
-      result: 'WIN',
-      profitAmount: 22.0,
-    },
-    {
-      id: 'hist-3',
-      platform: 'mt5',
-      marketName: 'EUR/USD',
-      strategyName: 'EMA Trend Pullback (20/200)',
-      signalType: 'BUY',
-      strength: 89,
-      entryPrice: 1.17380,
-      generatedAt: Date.now() - 900000,
-      result: 'WIN',
-      profitAmount: 45.0,
-    },
-    {
-      id: 'hist-4',
-      platform: 'deriv',
-      marketName: 'Boom 1000 Index',
-      strategyName: 'Deriv False Breakout Reversal',
-      signalType: 'FALL',
-      strength: 78,
-      entryPrice: 10480.0,
-      generatedAt: Date.now() - 1200000,
-      result: 'LOSS',
-      profitAmount: -12.0,
-    },
-  ]);
+  const [signalHistory, setSignalHistory] = useState<SignalHistoryItem[]>(() => {
+    const saved = localStorage.getItem('marketmind_signal_history');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return [
+      {
+        id: 'hist-1',
+        platform: 'deriv',
+        marketName: 'Volatility 75 Index',
+        strategyName: 'SMC Order Block (Bullish Demand)',
+        signalType: 'RISE',
+        strength: 94,
+        entryPrice: 4518.2,
+        generatedAt: Date.now() - 300000,
+        result: 'WIN',
+        profitAmount: 18.5,
+      },
+      {
+        id: 'hist-2',
+        platform: 'deriv',
+        marketName: 'Volatility 100 Index',
+        strategyName: 'Over/Matches Marubozu Breakout',
+        signalType: 'MATCHES',
+        strength: 88,
+        entryPrice: 12440.5,
+        generatedAt: Date.now() - 600000,
+        result: 'WIN',
+        profitAmount: 22.0,
+      },
+      {
+        id: 'hist-3',
+        platform: 'mt5',
+        marketName: 'EUR/USD',
+        strategyName: 'EMA Trend Pullback (20/200)',
+        signalType: 'BUY',
+        strength: 89,
+        entryPrice: 1.1738,
+        generatedAt: Date.now() - 900000,
+        result: 'WIN',
+        profitAmount: 45.0,
+      },
+      {
+        id: 'hist-4',
+        platform: 'deriv',
+        marketName: 'Boom 1000 Index',
+        strategyName: 'Deriv False Breakout Reversal',
+        signalType: 'FALL',
+        strength: 78,
+        entryPrice: 10480.0,
+        generatedAt: Date.now() - 1200000,
+        result: 'LOSS',
+        profitAmount: -12.0,
+      },
+    ];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('marketmind_signal_history', JSON.stringify(signalHistory));
+  }, [signalHistory]);
 
   // Connect to Live Deriv WebSocket & MT5 Bridge on mount / symbol change
   useEffect(() => {

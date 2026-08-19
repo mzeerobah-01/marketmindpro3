@@ -1,9 +1,11 @@
 import { Router, Request, Response } from 'express';
+import fs from 'fs';
+import path from 'path';
 import { CandleData, TickData } from '../types';
 
 export const mt5Router = Router();
 
-interface MT5AccountPacket {
+export interface MT5AccountPacket {
   accountNumber: string;
   server: string;
   balance: number;
@@ -14,7 +16,7 @@ interface MT5AccountPacket {
   lastUpdated: number;
 }
 
-interface MT5SymbolState {
+export interface MT5SymbolState {
   symbol: string;
   bid: number;
   ask: number;
@@ -26,10 +28,28 @@ interface MT5SymbolState {
   candles: CandleData[];
 }
 
+export interface MT5WebhookSignal {
+  id: string;
+  timestamp: number;
+  action: 'BUY' | 'SELL' | 'CLOSE' | 'CLOSEALL';
+  symbol: string;
+  lot: number;
+  sl: number; // in pips
+  tp: number; // in pips
+  comment: string;
+  status: 'PENDING' | 'DISPATCHED' | 'EXECUTED';
+  rawPipeDelimited: string;
+}
+
 // In-memory MT5 state store
 const activeAccounts = new Map<string, MT5AccountPacket>();
 const symbolStates = new Map<string, MT5SymbolState>();
+const signalHistory: MT5WebhookSignal[] = [];
 let lastTerminalPacketTime = 0;
+
+// Configuration
+let configuredWebhookSecret = process.env.WEBHOOK_SECRET || 'mmp_mt5_secret_2026';
+let configuredSignalFilePath = process.env.SIGNAL_FILE_PATH || '';
 
 // Initialize standard MT5 symbols
 const DEFAULT_MT5_SYMBOLS = [
@@ -56,9 +76,34 @@ DEFAULT_MT5_SYMBOLS.forEach(s => {
   });
 });
 
+// Helper: Write signal to MT5 shared Common\Files if file path is available
+function writeSignalToFile(pipeLine: string) {
+  if (!configuredSignalFilePath) {
+    // Default fallback in project if no absolute path
+    const fallbackDir = path.join(process.cwd(), 'signals');
+    try {
+      if (!fs.existsSync(fallbackDir)) {
+        fs.mkdirSync(fallbackDir, { recursive: true });
+      }
+      fs.appendFileSync(path.join(fallbackDir, 'tv_signal.txt'), pipeLine + '\n', 'utf8');
+    } catch {}
+    return;
+  }
+
+  try {
+    const dir = path.dirname(configuredSignalFilePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.appendFileSync(configuredSignalFilePath, pipeLine + '\n', 'utf8');
+  } catch (e) {
+    console.error('Error writing signal to SIGNAL_FILE_PATH:', e);
+  }
+}
+
 // 1. Status & Health
 mt5Router.get('/status', (_req: Request, res: Response) => {
-  const isTerminalLive = Date.now() - lastTerminalPacketTime < 15000;
+  const isTerminalLive = Date.now() - lastTerminalPacketTime < 25000;
   const accounts = Array.from(activeAccounts.values());
 
   res.json({
@@ -71,6 +116,10 @@ mt5Router.get('/status', (_req: Request, res: Response) => {
     trackedSymbolsCount: symbolStates.size,
     serverTime: Date.now(),
     bridgeEndpoint: '/api/mt5/push-tick',
+    webhookEndpoint: '/api/mt5/webhook',
+    webhookSecret: configuredWebhookSecret,
+    signalFilePath: configuredSignalFilePath,
+    signalsCount: signalHistory.length,
   });
 });
 
@@ -175,7 +224,113 @@ mt5Router.post('/push-candles', (req: Request, res: Response) => {
   }
 });
 
-// 4. Get Latest Market State for Symbol
+// 4. Ingest Webhook Signal (from TradingView or MarketMindPro)
+export const handleWebhookSignal = (req: Request, res: Response) => {
+  try {
+    const { secret, action, symbol, lot, sl, tp, comment } = req.body;
+
+    // Check secret
+    if (secret && configuredWebhookSecret && secret !== configuredWebhookSecret) {
+      return res.status(403).json({ error: 'Invalid webhook secret. Request rejected.' });
+    }
+
+    if (!action) {
+      return res.status(400).json({ error: 'Missing "action" in alert payload (buy, sell, close, closeall)' });
+    }
+
+    const cleanAction = String(action).toUpperCase() as 'BUY' | 'SELL' | 'CLOSE' | 'CLOSEALL';
+    if (!['BUY', 'SELL', 'CLOSE', 'CLOSEALL'].includes(cleanAction)) {
+      return res.status(400).json({ error: `Invalid action "${action}". Allowed: buy, sell, close, closeall` });
+    }
+
+    const cleanSymbol = symbol ? String(symbol).toUpperCase().replace(/[\/\-_]/g, '') : 'EURUSD';
+    const numLot = typeof lot === 'number' && lot > 0 ? lot : 0.1;
+    const numSl = typeof sl === 'number' ? sl : 0;
+    const numTp = typeof tp === 'number' ? tp : 0;
+    const cleanComment = comment ? String(comment).replace(/[\|\r\n]/g, '_') : 'mmp-bridge';
+    const timestamp = Date.now();
+
+    // Pipe-delimited string for MT5 EA: ACTION|SYMBOL|LOT|SL|TP|COMMENT|TIMESTAMP
+    const pipeLine = `${cleanAction}|${cleanSymbol}|${numLot.toFixed(2)}|${numSl}|${numTp}|${cleanComment}|${timestamp}`;
+
+    const signalItem: MT5WebhookSignal = {
+      id: `sig_${timestamp}_${Math.random().toString(36).substr(2, 6)}`,
+      timestamp,
+      action: cleanAction,
+      symbol: cleanSymbol,
+      lot: numLot,
+      sl: numSl,
+      tp: numTp,
+      comment: cleanComment,
+      status: 'DISPATCHED',
+      rawPipeDelimited: pipeLine,
+    };
+
+    // Store in signal history (limit 200)
+    signalHistory.unshift(signalItem);
+    if (signalHistory.length > 200) signalHistory.pop();
+
+    // Write to common file
+    writeSignalToFile(pipeLine);
+
+    return res.json({
+      success: true,
+      message: 'Signal accepted and dispatched to MT5 Bridge',
+      signal: signalItem,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Error processing webhook signal' });
+  }
+};
+
+mt5Router.post('/webhook', handleWebhookSignal);
+
+// 5. Get Signal History & Queue for UI
+mt5Router.get('/signals', (_req: Request, res: Response) => {
+  res.json({
+    signals: signalHistory,
+    total: signalHistory.length,
+    webhookSecret: configuredWebhookSecret,
+    signalFilePath: configuredSignalFilePath,
+  });
+});
+
+// 6. Update Webhook Config
+mt5Router.post('/config', (req: Request, res: Response) => {
+  const { webhookSecret, signalFilePath } = req.body;
+  if (typeof webhookSecret === 'string') configuredWebhookSecret = webhookSecret;
+  if (typeof signalFilePath === 'string') configuredSignalFilePath = signalFilePath;
+
+  res.json({
+    success: true,
+    webhookSecret: configuredWebhookSecret,
+    signalFilePath: configuredSignalFilePath,
+  });
+});
+
+// 7. Test Signal Generator Endpoint
+mt5Router.post('/test-signal', (req: Request, res: Response) => {
+  req.body.secret = configuredWebhookSecret;
+  return handleWebhookSignal(req, res);
+});
+
+// 8. Poll Signal for WebRequest MT5 EAs
+mt5Router.get('/poll-signal', (req: Request, res: Response) => {
+  const secret = req.query.secret;
+  if (secret && configuredWebhookSecret && secret !== configuredWebhookSecret) {
+    return res.status(403).send('FORBIDDEN');
+  }
+
+  const latest = signalHistory[0];
+  if (latest && latest.status === 'DISPATCHED' && Date.now() - latest.timestamp < 10000) {
+    latest.status = 'EXECUTED';
+    return res.send(latest.rawPipeDelimited);
+  }
+
+  return res.send('EMPTY');
+});
+
+// 9. Get Market State for Symbol
 mt5Router.get('/market/:symbol', (req: Request, res: Response) => {
   const cleanSymbol = String(req.params.symbol).toUpperCase().replace(/[\/\-_]/g, '');
   const state = symbolStates.get(cleanSymbol) || symbolStates.get('EURUSD');
@@ -183,32 +338,54 @@ mt5Router.get('/market/:symbol', (req: Request, res: Response) => {
   res.json({
     symbol: cleanSymbol,
     state,
-    isTerminalConnected: Date.now() - lastTerminalPacketTime < 15000,
+    isTerminalConnected: Date.now() - lastTerminalPacketTime < 25000,
   });
 });
 
-// 5. Generate MQL5 Expert Advisor Script source code
-mt5Router.get('/download/ea', (_req: Request, res: Response) => {
-  const mql5Code = `//+------------------------------------------------------------------+
-//|                                     MarketMindPro_Bridge.mq5     |
+// 10. Generate TV_Bridge_EA.mq5 Expert Advisor source code
+const getMql5SourceCode = () => `//+------------------------------------------------------------------+
+//|                                              TV_Bridge_EA.mq5    |
 //|                        Copyright 2026, MarketMindPro Systems     |
-//|                                    https://marketmindpro.local   |
+//|                    TradingView / MarketMindPro -> MT5 Bridge     |
 //+------------------------------------------------------------------+
 #property copyright "MarketMindPro Systems"
-#property link      "https://marketmindpro.local"
+#property link      "https://marketmindpro.trade"
 #property version   "1.00"
 #property strict
 
-input string WebhookURL = "http://localhost:3000/api/mt5/push-tick"; // MarketMindPro Bridge URL
-input int    TimerIntervalMs = 500; // Push frequency (ms)
+#include <Trade\\Trade.mqh>
+#include <Trade\\SymbolInfo.mqh>
+
+//--- Inputs
+input string   SignalFileName            = "tv_signal.txt"; // Signal file in Common\\Files
+input double   MaxLotSize                = 1.0;             // Max allowed lot size (safety cap)
+input string   AllowedSymbols            = "";              // Whitelist (e.g. EURUSD,GBPUSD, leave empty for all)
+input int      SlippagePoints            = 30;              // Max slippage in points
+input ulong    MagicNumber               = 108924;          // EA Magic Number
+input int      CheckIntervalMs           = 1000;            // Poll interval (ms)
+input int      PipMultiplier             = 10;              // 10 for 5/3 digit brokers, 1 for 4/2 digit
+input bool     DeleteSignalAfterExecute  = true;            // Clear signal file after execution
+
+//--- Global Objects
+CTrade         m_trade;
+CSymbolInfo    m_symbol;
 
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
 //+------------------------------------------------------------------+
 int OnInit()
 {
-   Print("MarketMindPro Bridge Initialized for symbol: ", _Symbol);
-   EventSetMillisecondTimer(TimerIntervalMs);
+   m_trade.SetExpertMagicNumber(MagicNumber);
+   m_trade.SetDeviationInPoints(SlippagePoints);
+   m_trade.SetTypeFilling(ORDER_FILLING_FOK);
+   
+   Print("=================================================");
+   Print("TV_Bridge_EA initialized successfully.");
+   Print("Watching Common\\\\Files\\\\", SignalFileName, " every ", CheckIntervalMs, "ms");
+   Print("Magic Number: ", MagicNumber, " | Max Lot Size: ", MaxLotSize);
+   Print("=================================================");
+
+   EventSetMillisecondTimer(CheckIntervalMs);
    return(INIT_SUCCEEDED);
 }
 
@@ -218,51 +395,224 @@ int OnInit()
 void OnDeinit(const int reason)
 {
    EventKillTimer();
+   Print("TV_Bridge_EA stopped. Reason: ", reason);
 }
 
 //+------------------------------------------------------------------+
-//| Expert timer function                                            |
+//| Check if symbol is allowed                                       |
+//+------------------------------------------------------------------+
+bool IsSymbolAllowed(string symbol)
+{
+   if(StringLen(AllowedSymbols) == 0) return true;
+   string allowed[];
+   int count = StringSplit(AllowedSymbols, ',', allowed);
+   for(int i = 0; i < count; i++)
+   {
+      string s = allowed[i];
+      StringTrimLeft(s);
+      StringTrimRight(s);
+      StringToUpper(s);
+      if(s == symbol) return true;
+   }
+   return false;
+}
+
+//+------------------------------------------------------------------+
+//| Close positions for a specific symbol                            |
+//+------------------------------------------------------------------+
+void ClosePositionsForSymbol(string symbol)
+{
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      ulong ticket = PositionGetTicket(i);
+      if(ticket > 0)
+      {
+         if(PositionGetString(POSITION_SYMBOL) == symbol && 
+            PositionGetInteger(POSITION_MAGIC) == MagicNumber)
+         {
+            m_trade.PositionClose(ticket);
+            Print("Closed position #", ticket, " for ", symbol);
+         }
+      }
+   }
+}
+
+//+------------------------------------------------------------------+
+//| Close all positions opened by this EA                            |
+//+------------------------------------------------------------------+
+void CloseAllPositions()
+{
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      ulong ticket = PositionGetTicket(i);
+      if(ticket > 0)
+      {
+         if(PositionGetInteger(POSITION_MAGIC) == MagicNumber)
+         {
+            m_trade.PositionClose(ticket);
+            Print("Closed position #", ticket);
+         }
+      }
+   }
+}
+
+//+------------------------------------------------------------------+
+//| Execute Parsed Signal                                            |
+//+------------------------------------------------------------------+
+void ProcessSignalLine(string line)
+{
+   StringTrimLeft(line);
+   StringTrimRight(line);
+   if(StringLen(line) == 0) return;
+
+   // Expected format: ACTION|SYMBOL|LOT|SL|TP|COMMENT|TIMESTAMP
+   string parts[];
+   int count = StringSplit(line, '|', parts);
+   if(count < 2)
+   {
+      Print("Invalid signal line format: ", line);
+      return;
+   }
+
+   string action = parts[0];
+   StringToUpper(action);
+
+   if(action == "CLOSEALL")
+   {
+      Print("[TV_Bridge_EA] Received CLOSEALL signal");
+      CloseAllPositions();
+      return;
+   }
+
+   string symbol = parts[1];
+   StringToUpper(symbol);
+
+   if(!IsSymbolAllowed(symbol))
+   {
+      Print("[TV_Bridge_EA] Symbol ", symbol, " is not in AllowedSymbols whitelist. Ignoring.");
+      return;
+   }
+
+   if(action == "CLOSE")
+   {
+      Print("[TV_Bridge_EA] Received CLOSE signal for ", symbol);
+      ClosePositionsForSymbol(symbol);
+      return;
+   }
+
+   double lot = (count > 2) ? StringToDouble(parts[2]) : 0.1;
+   double slPips = (count > 3) ? StringToDouble(parts[3]) : 0;
+   double tpPips = (count > 4) ? StringToDouble(parts[4]) : 0;
+   string comment = (count > 5) ? parts[5] : "TV_Bridge";
+
+   if(lot > MaxLotSize)
+   {
+      Print("[TV_Bridge_EA] Requested lot ", lot, " exceeds MaxLotSize ", MaxLotSize, ". Ignoring signal.");
+      return;
+   }
+
+   if(!m_symbol.Name(symbol))
+   {
+      Print("[TV_Bridge_EA] Failed to select symbol: ", symbol);
+      return;
+   }
+   m_symbol.RefreshRates();
+
+   double point = m_symbol.Point();
+   int digits = (int)m_symbol.Digits();
+   double ask = m_symbol.Ask();
+   double bid = m_symbol.Bid();
+
+   if(action == "BUY")
+   {
+      double slPrice = (slPips > 0) ? NormalizeDouble(ask - (slPips * point * PipMultiplier), digits) : 0;
+      double tpPrice = (tpPips > 0) ? NormalizeDouble(ask + (tpPips * point * PipMultiplier), digits) : 0;
+
+      Print("[TV_Bridge_EA] Executing BUY ", lot, " ", symbol, " @ ", ask, " SL: ", slPrice, " TP: ", tpPrice);
+      if(m_trade.Buy(lot, symbol, ask, slPrice, tpPrice, comment))
+      {
+         Print("[TV_Bridge_EA] BUY Executed Successfully. Ticket: ", m_trade.ResultOrder());
+      }
+      else
+      {
+         Print("[TV_Bridge_EA] BUY Execution Failed. Error: ", m_trade.ResultRetcodeDescription());
+      }
+   }
+   else if(action == "SELL")
+   {
+      double slPrice = (slPips > 0) ? NormalizeDouble(bid + (slPips * point * PipMultiplier), digits) : 0;
+      double tpPrice = (tpPips > 0) ? NormalizeDouble(bid - (tpPips * point * PipMultiplier), digits) : 0;
+
+      Print("[TV_Bridge_EA] Executing SELL ", lot, " ", symbol, " @ ", bid, " SL: ", slPrice, " TP: ", tpPrice);
+      if(m_trade.Sell(lot, symbol, bid, slPrice, tpPrice, comment))
+      {
+         Print("[TV_Bridge_EA] SELL Executed Successfully. Ticket: ", m_trade.ResultOrder());
+      }
+      else
+      {
+         Print("[TV_Bridge_EA] SELL Execution Failed. Error: ", m_trade.ResultRetcodeDescription());
+      }
+   }
+}
+
+//+------------------------------------------------------------------+
+//| Timer function: Polls Common\\Files for new signals               |
 //+------------------------------------------------------------------+
 void OnTimer()
 {
-   MqlTick lastTick;
-   if(!SymbolInfoTick(_Symbol, lastTick)) return;
-
-   string payload = StringFormat(
-      "{\\"symbol\\":\\"%s\\",\\"price\\":%.5f,\\"bid\\":%.5f,\\"ask\\":%.5f,\\"digits\\":%d,\\"timestamp\\":%I64d,\\"accountNumber\\":\\"%d\\",\\"server\\":\\"%s\\",\\"balance\\":%.2f,\\"equity\\":%.2f}",
-      _Symbol,
-      lastTick.bid,
-      lastTick.bid,
-      lastTick.ask,
-      _Digits,
-      (long)lastTick.time_msc,
-      AccountInfoInteger(ACCOUNT_LOGIN),
-      AccountInfoString(ACCOUNT_SERVER),
-      AccountInfoDouble(ACCOUNT_BALANCE),
-      AccountInfoDouble(ACCOUNT_EQUITY)
-   );
-
-   char postData[];
-   char result[];
-   string resultHeaders;
-   StringToCharArray(payload, postData, 0, WHOLE_ARRAY, CP_UTF8);
-
-   string headers = "Content-Type: application/json\\r\\n";
-   int res = WebRequest("POST", WebhookURL, headers, 1000, postData, result, resultHeaders);
-   if(res == -1)
+   int fileHandle = FileOpen(SignalFileName, FILE_READ | FILE_TXT | FILE_COMMON | FILE_SHARE_READ | FILE_SHARE_WRITE);
+   if(fileHandle == INVALID_HANDLE)
    {
-      // Tip: Add WebhookURL to MT5 -> Tools -> Options -> Expert Advisors -> Allow WebRequest for listed URL
+      return; // No file or busy
+   }
+
+   string lines[];
+   int lineCount = 0;
+   while(!FileIsEnding(fileHandle))
+   {
+      string line = FileReadString(fileHandle);
+      if(StringLen(line) > 0)
+      {
+         ArrayResize(lines, lineCount + 1);
+         lines[lineCount] = line;
+         lineCount++;
+      }
+   }
+   FileClose(fileHandle);
+
+   if(lineCount > 0)
+   {
+      for(int i = 0; i < lineCount; i++)
+      {
+         ProcessSignalLine(lines[i]);
+      }
+
+      if(DeleteSignalAfterExecute)
+      {
+         int delHandle = FileOpen(SignalFileName, FILE_WRITE | FILE_TXT | FILE_COMMON);
+         if(delHandle != INVALID_HANDLE)
+         {
+            FileWriteString(delHandle, "");
+            FileClose(delHandle);
+         }
+      }
    }
 }
-//+------------------------------------------------------------------+
 `;
 
-  res.setHeader('Content-Disposition', 'attachment; filename="MarketMindPro_Bridge.mq5"');
+mt5Router.get('/download/ea', (_req: Request, res: Response) => {
+  res.setHeader('Content-Disposition', 'attachment; filename="TV_Bridge_EA.mq5"');
   res.setHeader('Content-Type', 'text/plain');
-  res.send(mql5Code);
+  res.send(getMql5SourceCode());
 });
 
-// 6. Generate Python Bridge script
+mt5Router.get('/download/tv-bridge-ea', (_req: Request, res: Response) => {
+  res.setHeader('Content-Disposition', 'attachment; filename="TV_Bridge_EA.mq5"');
+  res.setHeader('Content-Type', 'text/plain');
+  res.send(getMql5SourceCode());
+});
+
+// 11. Generate Python Bridge script
 mt5Router.get('/download/python-bridge', (_req: Request, res: Response) => {
   const pythonCode = `"""
 MarketMindPro MetaTrader 5 High-Frequency Bridge
@@ -324,3 +674,4 @@ if __name__ == "__main__":
   res.setHeader('Content-Type', 'text/plain');
   res.send(pythonCode);
 });
+

@@ -10,6 +10,19 @@ export interface MT5AccountStatus {
   leverage: number;
 }
 
+export interface MT5WebhookSignal {
+  id: string;
+  timestamp: number;
+  action: 'BUY' | 'SELL' | 'CLOSE' | 'CLOSEALL';
+  symbol: string;
+  lot: number;
+  sl: number;
+  tp: number;
+  comment: string;
+  status: 'PENDING' | 'DISPATCHED' | 'EXECUTED';
+  rawPipeDelimited: string;
+}
+
 export interface MT5BridgeStatus {
   bridgeStatus: 'online' | 'standby';
   isTerminalConnected: boolean;
@@ -17,6 +30,10 @@ export interface MT5BridgeStatus {
   latencyMs: number;
   connectedAccountsCount: number;
   accounts: MT5AccountStatus[];
+  webhookEndpoint?: string;
+  webhookSecret?: string;
+  signalFilePath?: string;
+  signalsCount?: number;
 }
 
 class MT5BridgeService {
@@ -78,6 +95,50 @@ class MT5BridgeService {
       return status;
     } catch (e) {
       return null;
+    }
+  }
+
+  public async fetchSignals(): Promise<MT5WebhookSignal[]> {
+    try {
+      const res = await fetch('/api/mt5/signals');
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.signals || [];
+    } catch {
+      return [];
+    }
+  }
+
+  public async sendTestSignal(payload: {
+    action: 'BUY' | 'SELL' | 'CLOSE' | 'CLOSEALL';
+    symbol: string;
+    lot?: number;
+    sl?: number;
+    tp?: number;
+    comment?: string;
+  }): Promise<{ success: boolean; message?: string; signal?: MT5WebhookSignal }> {
+    try {
+      const res = await fetch('/api/mt5/test-signal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, message: err.message };
+    }
+  }
+
+  public async updateConfig(config: { webhookSecret?: string; signalFilePath?: string }): Promise<boolean> {
+    try {
+      const res = await fetch('/api/mt5/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+      });
+      return res.ok;
+    } catch {
+      return false;
     }
   }
 

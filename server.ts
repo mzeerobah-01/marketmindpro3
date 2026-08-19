@@ -10,6 +10,13 @@ async function startServer() {
   // JSON Body Parser for API requests
   app.use(express.json({ limit: '10mb' }));
 
+  // Root Webhook listener alias for TradingView alerts
+  app.post('/webhook', (req, res) => {
+    // Forward directly to mt5 webhook handler
+    const { handleWebhookSignal } = require('./src/backend/routes/mt5Bridge');
+    handleWebhookSignal(req, res);
+  });
+
   // Mount Backend API routes
   app.use('/api', apiRouter);
 
