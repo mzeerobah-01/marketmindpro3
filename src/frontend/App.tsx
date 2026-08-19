@@ -36,6 +36,7 @@ import { Footer } from './components/Footer';
 import { apiClient, UserSession } from './services/apiClient';
 import { derivWebSocket } from './services/derivWebSocketService';
 import { mt5Bridge } from './services/mt5BridgeService';
+import { tradingViewLiveAnalysis } from './services/tradingViewLiveAnalysisService';
 
 // Default Deriv Markets
 const INITIAL_DERIV_MARKETS: MarketAsset[] = [
@@ -606,7 +607,20 @@ export default function App() {
         unsubAccount();
       };
     } else {
-      // 2. MT5 Asset - Subscribe to MT5 Bridge
+      // 2. TradingView / MT5 Asset - Hook into live real-time analysis service
+      tradingViewLiveAnalysis.setMarketAndInterval(currentActiveAsset, '15M');
+      
+      const unsubAnalysis = tradingViewLiveAnalysis.subscribe((result) => {
+        if (result.asset.id === currentActiveAsset.id) {
+          if (result.candles.length > 0) {
+            setCandles(result.candles);
+          }
+          if (result.ticks.length > 0) {
+            setTicks(result.ticks);
+          }
+        }
+      });
+
       mt5Bridge.setSymbol(currentActiveAsset.symbol);
       const unsubMt5Tick = mt5Bridge.onTick((liveTick, symbol) => {
         const cleanCurrent = currentActiveAsset.symbol.toUpperCase().replace(/[\/\-_]/g, '');
@@ -620,16 +634,18 @@ export default function App() {
       });
 
       return () => {
+        unsubAnalysis();
         unsubMt5Tick();
       };
     }
   }, [currentActiveAsset]);
 
-  // Real-time market tick heartbeat engine (active when waiting or in fallback)
+  // Real-time market tick heartbeat engine (active for Deriv synthetic fallback only)
   useEffect(() => {
+    // If not Deriv, TradingView live service manages real-time updates
+    if (currentActiveAsset.platform !== 'deriv') return;
+
     const interval = setInterval(() => {
-      // If Deriv is connected and authorized/streaming, the WebSocket handles ticks.
-      // Otherwise, keep the high-frequency calculation ticker active
       const isDerivActive = currentActiveAsset.platform === 'deriv' && derivWebSocket.getStatus() === 'connected';
       if (isDerivActive) return;
 

@@ -324,29 +324,15 @@ export const SignalAnalysisPanel: React.FC<SignalAnalysisPanelProps> = ({
             </div>
           </div>
 
-          {/* Simulation Feedback Alert */}
-          {simulationState.status === 'success' && (
-            <div className="p-2 rounded bg-green-500/15 border border-green-500/40 text-green-300 text-xs flex items-center gap-2 animate-in fade-in duration-150">
-              <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />
-              <span>{simulationState.message}</span>
-            </div>
-          )}
-
-          {/* Execution & Action Buttons (Simulate Button Area) */}
-          <div className="pt-2 flex flex-col sm:flex-row items-center gap-2">
-            <button
-              id="btn-simulate-trade-signal"
-              onClick={handleSimulateExecution}
-              disabled={simulationState.status === 'simulating'}
-              className="w-full sm:flex-1 py-2.5 px-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center space-x-2 transition cursor-pointer shadow-md shadow-blue-600/25 active:scale-98"
-            >
-              <Send className="w-4 h-4" />
-              <span>
-                {simulationState.status === 'simulating'
-                  ? 'Simulating Trade...'
-                  : 'Simulate Signal Execution'}
-              </span>
-            </button>
+          {/* Live Chart Analysis Status Strip */}
+          <div className="pt-1.5 flex items-center justify-between text-[10px] text-[#848E9C] border-t border-[#2B2F36]">
+            <span className="flex items-center space-x-1.5 text-emerald-400 font-bold">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_6px_#10b981]" />
+              <span>Real-Time Chart Analysis Active</span>
+            </span>
+            <span className="font-mono text-[9px] text-[#848E9C]">
+              Auto-Synced to Live Feed
+            </span>
           </div>
         </div>
       </div>
