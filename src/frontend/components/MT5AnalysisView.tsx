@@ -14,6 +14,8 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Send,
+  BarChart2,
+  Radio,
 } from 'lucide-react';
 
 interface MT5AnalysisViewProps {
@@ -62,7 +64,7 @@ export const MT5AnalysisView: React.FC<MT5AnalysisViewProps> = ({
     return matchesCat && matchesSearch;
   });
 
-  // Calculate SL / TP values for MT5 asset
+  // Calculate SL / TP values for TradingView / MT5 asset
   const curPrice = selectedMarket.currentPrice;
   const isBuy = activeSignal?.direction === 'BUY' || activeSignal?.direction === 'RISE';
   const slOffset = curPrice * 0.003;
@@ -73,24 +75,28 @@ export const MT5AnalysisView: React.FC<MT5AnalysisViewProps> = ({
   const calculatedTP = isBuy ? calculatedEntry + tpOffset : calculatedEntry - tpOffset;
 
   return (
-    <div id="mt5-analysis-workspace" className="space-y-3 font-mono">
-      {/* 1. MT5 Market Selector & Status Strip */}
+    <div id="tradingview-analysis-workspace" className="space-y-3 font-mono">
+      {/* 1. Market Selector & Status Strip */}
       <div
-        id="mt5-market-selector-strip"
+        id="tv-market-selector-strip"
         className={`p-3.5 rounded-lg border ${
           isDarkMode ? 'bg-[#161A1E] border-[#2B2F36]' : 'bg-white border-slate-200'
         } shadow-sm space-y-2.5`}
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 rounded bg-blue-500/15 border border-blue-500/40 flex items-center justify-center font-bold text-blue-400">
-              <Cpu className="w-4 h-4" />
+            <div className="w-9 h-9 rounded bg-blue-500/15 border border-blue-500/40 flex items-center justify-center font-bold text-blue-400">
+              <BarChart2 className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center space-x-2">
                 <h2 className="text-sm font-bold text-white uppercase">{selectedMarket.name}</h2>
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-500/15 text-blue-300 border border-blue-500/30">
                   {selectedMarket.symbol}
+                </span>
+                <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  TradingView Live Feed
                 </span>
               </div>
               <div className="flex items-center space-x-3 text-[11px] text-[#848E9C] mt-0.5">
@@ -119,7 +125,7 @@ export const MT5AnalysisView: React.FC<MT5AnalysisViewProps> = ({
                 title="Connect MetaTrader 5 Account"
               >
                 <Cpu className="w-3.5 h-3.5 text-blue-400" />
-                <span>Connect MT5</span>
+                <span>MT5 Bridge</span>
               </button>
             )}
 
@@ -190,7 +196,7 @@ export const MT5AnalysisView: React.FC<MT5AnalysisViewProps> = ({
 
       {/* 2. Main Workspace Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
-        {/* Left Column: Live MT5 Chart with Entry/SL/TP Markers (8 cols) */}
+        {/* Left Column: Live TradingView Chart with Entry/SL/TP Markers (8 cols) */}
         <div className="lg:col-span-8 space-y-3">
           <TradingChart
             asset={selectedMarket}
@@ -203,11 +209,12 @@ export const MT5AnalysisView: React.FC<MT5AnalysisViewProps> = ({
             selectedTimeframe={selectedTimeframe}
             onTimeframeChange={setSelectedTimeframe}
             isDarkMode={isDarkMode}
+            defaultEngine="tradingview"
           />
 
-          {/* MT5 Trade Parameters & Risk/Reward Card */}
+          {/* Trade Parameters & Risk/Reward Card */}
           <div
-            id="mt5-trade-setup-card"
+            id="tradingview-trade-setup-card"
             className={`p-3.5 rounded-lg border ${
               isDarkMode ? 'bg-[#161A1E] border-[#2B2F36]' : 'bg-white border-slate-200'
             } shadow-sm space-y-2.5`}
@@ -216,7 +223,7 @@ export const MT5AnalysisView: React.FC<MT5AnalysisViewProps> = ({
               <div className="flex items-center space-x-2">
                 <Target className="w-3.5 h-3.5 text-blue-400" />
                 <h3 className="text-xs font-bold text-white uppercase tracking-wider">
-                  MT5 Order Parameters
+                  Live Signal Order Parameters (Entry & Exit Points)
                 </h3>
               </div>
               <span className="text-[10px] font-mono font-bold text-green-400 bg-green-500/10 border border-green-500/30 px-2 py-0.5 rounded">
@@ -226,26 +233,26 @@ export const MT5AnalysisView: React.FC<MT5AnalysisViewProps> = ({
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
               <div className="p-2 rounded bg-[#0B0E11] border border-[#2B2F36]">
-                <div className="text-[9px] text-[#848E9C] uppercase font-bold">Order Type</div>
+                <div className="text-[9px] text-[#848E9C] uppercase font-bold">Signal Type</div>
                 <div className="text-xs font-bold text-blue-400 mt-0.5 flex items-center space-x-1">
                   {isBuy ? <ArrowUpRight className="w-3.5 h-3.5 text-green-400" /> : <ArrowDownRight className="w-3.5 h-3.5 text-rose-400" />}
                   <span>{isBuy ? 'BUY / LONG' : 'SELL / SHORT'}</span>
                 </div>
               </div>
-              <div className="p-2 rounded bg-[#0B0E11] border border-[#2B2F36]">
-                <div className="text-[9px] text-[#848E9C] uppercase font-bold">Entry Price</div>
+              <div className="p-2 rounded bg-[#0B0E11] border border-blue-500/30">
+                <div className="text-[9px] text-[#848E9C] uppercase font-bold">🎯 Entry Point</div>
                 <div className="text-xs font-mono font-bold text-white mt-0.5">
                   {calculatedEntry.toFixed(selectedMarket.digits)}
                 </div>
               </div>
-              <div className="p-2 rounded bg-[#0B0E11] border border-[#2B2F36]">
-                <div className="text-[9px] text-[#848E9C] uppercase font-bold">Stop Loss (SL)</div>
+              <div className="p-2 rounded bg-[#0B0E11] border border-rose-500/30">
+                <div className="text-[9px] text-rose-400 uppercase font-bold">🔴 Exit Point (SL)</div>
                 <div className="text-xs font-mono font-bold text-rose-400 mt-0.5">
                   {calculatedSL.toFixed(selectedMarket.digits)}
                 </div>
               </div>
-              <div className="p-2 rounded bg-[#0B0E11] border border-[#2B2F36]">
-                <div className="text-[9px] text-[#848E9C] uppercase font-bold">Take Profit (TP)</div>
+              <div className="p-2 rounded bg-[#0B0E11] border border-green-500/30">
+                <div className="text-[9px] text-green-400 uppercase font-bold">🟢 Exit Point (TP)</div>
                 <div className="text-xs font-mono font-bold text-green-400 mt-0.5">
                   {calculatedTP.toFixed(selectedMarket.digits)}
                 </div>
@@ -269,3 +276,4 @@ export const MT5AnalysisView: React.FC<MT5AnalysisViewProps> = ({
     </div>
   );
 };
+

@@ -281,7 +281,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </button>
           </div>
 
-          {/* MT5 Active Signal Card */}
+          {/* TradingView / MT5 Active Signal Card */}
           <div
             id="dashboard-mt5-signal"
             className={`p-4 rounded-lg border ${
@@ -291,7 +291,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="flex items-center justify-between border-b border-[#2B2F36] pb-2">
               <div className="flex items-center space-x-2">
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/30">
-                  MT5 FOREX & METALS
+                  TRADINGVIEW LIVE FEED
                 </span>
                 <span className="font-bold text-white text-xs">{mt5Signal?.marketName || 'EUR/USD'}</span>
               </div>
@@ -312,16 +312,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
             <div className="grid grid-cols-4 gap-1.5 text-xs pt-1">
-              <div className="p-1.5 rounded bg-[#0B0E11] border border-[#2B2F36]">
-                <div className="text-[8px] text-[#848E9C] uppercase">Entry</div>
+              <div className="p-1.5 rounded bg-[#0B0E11] border border-blue-500/30">
+                <div className="text-[8px] text-[#848E9C] uppercase">🎯 Entry</div>
                 <div className="font-bold text-white mt-0.5 text-[11px] truncate">{mt5Signal?.entryPrice.toFixed(5) || '1.17420'}</div>
               </div>
-              <div className="p-1.5 rounded bg-[#0B0E11] border border-[#2B2F36]">
-                <div className="text-[8px] text-[#848E9C] uppercase">Stop Loss</div>
+              <div className="p-1.5 rounded bg-[#0B0E11] border border-rose-500/30">
+                <div className="text-[8px] text-rose-400 uppercase">🔴 Exit (SL)</div>
                 <div className="font-bold text-rose-400 mt-0.5 text-[11px] truncate">{mt5Signal?.stopLoss?.toFixed(5) || '1.17280'}</div>
               </div>
-              <div className="p-1.5 rounded bg-[#0B0E11] border border-[#2B2F36]">
-                <div className="text-[8px] text-[#848E9C] uppercase">Take Profit</div>
+              <div className="p-1.5 rounded bg-[#0B0E11] border border-green-500/30">
+                <div className="text-[8px] text-green-400 uppercase">🟢 Exit (TP)</div>
                 <div className="font-bold text-green-400 mt-0.5 text-[11px] truncate">{mt5Signal?.takeProfit?.toFixed(5) || '1.17700'}</div>
               </div>
               <div className="p-1.5 rounded bg-[#0B0E11] border border-[#2B2F36]">
@@ -334,7 +334,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               onClick={() => onNavigateTab('mt5')}
               className="w-full py-2 rounded bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center space-x-1.5 transition"
             >
-              <span>Open MT5 Analysis Terminal</span>
+              <span>Open TradingView Live Terminal</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>

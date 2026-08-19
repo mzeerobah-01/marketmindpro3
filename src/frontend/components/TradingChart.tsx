@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { CandleData, MarketAsset, SmcOverlay, TickData } from '../types';
+import { TradingViewLiveChart } from './TradingViewLiveChart';
 import {
   calculateADX,
   calculateBollingerBands,
@@ -20,6 +21,7 @@ import {
   ZoomIn,
   ZoomOut,
   RefreshCw,
+  BarChart2,
 } from 'lucide-react';
 
 interface TradingChartProps {
@@ -33,6 +35,7 @@ interface TradingChartProps {
   onTimeframeChange?: (tf: string) => void;
   selectedTimeframe?: string;
   isDarkMode?: boolean;
+  defaultEngine?: 'tradingview' | 'native';
 }
 
 export const TradingChart: React.FC<TradingChartProps> = ({
@@ -46,9 +49,11 @@ export const TradingChart: React.FC<TradingChartProps> = ({
   onTimeframeChange,
   selectedTimeframe = '1M',
   isDarkMode = true,
+  defaultEngine = 'tradingview',
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [engine, setEngine] = useState<'tradingview' | 'native'>(defaultEngine);
   const [chartType, setChartType] = useState<'candles' | 'line' | 'ticks'>('candles');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
@@ -614,6 +619,43 @@ export const TradingChart: React.FC<TradingChartProps> = ({
     setCrosshair({ x, y, price: asset.currentPrice, time: Date.now() });
   };
 
+  if (engine === 'tradingview') {
+    return (
+      <div className="space-y-1.5 font-mono">
+        <div className="flex items-center justify-between px-1">
+          <div className="flex items-center space-x-1.5">
+            <span className="text-[11px] font-bold text-white uppercase flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_#10b981]" />
+              <span>TradingView Live Terminal</span>
+            </span>
+          </div>
+          <div className="flex items-center space-x-1 bg-[#0B0E11] p-0.5 rounded border border-[#2B2F36] text-[10px]">
+            <button
+              onClick={() => setEngine('tradingview')}
+              className="px-2 py-0.5 rounded bg-blue-600 text-white font-bold uppercase transition"
+            >
+              TradingView Live
+            </button>
+            <button
+              onClick={() => setEngine('native')}
+              className="px-2 py-0.5 rounded text-[#848E9C] hover:text-white font-bold uppercase transition"
+            >
+              Pro Canvas
+            </button>
+          </div>
+        </div>
+
+        <TradingViewLiveChart
+          asset={asset}
+          selectedTimeframe={selectedTimeframe}
+          isDarkMode={isDarkMode}
+          onTimeframeChange={onTimeframeChange}
+          height={isFullscreen ? '100vh' : '520px'}
+        />
+      </div>
+    );
+  }
+
   return (
     <div
       ref={containerRef}
@@ -631,6 +673,24 @@ export const TradingChart: React.FC<TradingChartProps> = ({
         }`}
       >
         <div className="flex items-center space-x-2">
+          {/* Engine Switcher */}
+          <div className="flex items-center bg-[#0B0E11] rounded p-0.5 border border-[#2B2F36] text-[10px]">
+            <button
+              onClick={() => setEngine('tradingview')}
+              className="px-2 py-0.5 rounded text-[#848E9C] hover:text-white font-bold uppercase transition"
+            >
+              TV Live
+            </button>
+            <button
+              onClick={() => setEngine('native')}
+              className="px-2 py-0.5 rounded bg-blue-600 text-white font-bold uppercase transition"
+            >
+              Pro Canvas
+            </button>
+          </div>
+
+          <div className="h-3.5 w-px bg-[#2B2F36] mx-0.5" />
+
           {/* Timeframe selector */}
           <div className="flex items-center bg-[#0B0E11] rounded p-0.5 border border-[#2B2F36]">
             {['1T', '1M', '2M', '5M', '15M', '1H'].map(tf => (

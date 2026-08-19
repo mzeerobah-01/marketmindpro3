@@ -13,7 +13,16 @@ import {
   Play,
   Send,
   HelpCircle,
+  Target,
+  ShieldCheck,
+  TrendingUp,
+  TrendingDown,
+  Copy,
+  Check,
+  Radio,
+  CheckCircle2,
 } from 'lucide-react';
+import { mt5Bridge } from '../services/mt5BridgeService';
 
 interface SignalAnalysisPanelProps {
   asset: MarketAsset;
@@ -33,6 +42,11 @@ export const SignalAnalysisPanel: React.FC<SignalAnalysisPanelProps> = ({
   isDarkMode = true,
 }) => {
   const [countdown, setCountdown] = useState(activeSignal?.expiresInSeconds || 15);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [simulationState, setSimulationState] = useState<{
+    status: 'idle' | 'simulating' | 'success';
+    message?: string;
+  }>({ status: 'idle' });
 
   useEffect(() => {
     if (!activeSignal) return;
@@ -71,11 +85,58 @@ export const SignalAnalysisPanel: React.FC<SignalAnalysisPanelProps> = ({
   const isBullish =
     activeSignal?.direction === 'RISE' ||
     activeSignal?.direction === 'BUY' ||
-    activeSignal?.signalType?.includes('OVER');
+    activeSignal?.signalType?.includes('OVER') ||
+    activeSignal?.signalType?.includes('EVEN') ||
+    activeSignal?.signalType?.includes('MATCHES');
+
   const isBearish =
     activeSignal?.direction === 'FALL' ||
     activeSignal?.direction === 'SELL' ||
-    activeSignal?.signalType?.includes('UNDER');
+    activeSignal?.signalType?.includes('UNDER') ||
+    activeSignal?.signalType?.includes('ODD') ||
+    activeSignal?.signalType?.includes('DIFFERS');
+
+  // Calculate Entry, Stop Loss (Exit), and Take Profit (Exit)
+  const curPrice = activeSignal?.entryPrice || asset.currentPrice;
+  const isForex = asset.category === 'forex';
+  const isCrypto = asset.category === 'crypto';
+  const offset = curPrice * (isForex ? 0.0018 : isCrypto ? 0.012 : 0.0035);
+
+  const entryPoint = curPrice;
+  const takeProfitExit = isBullish ? entryPoint + offset * 2.0 : entryPoint - offset * 2.0;
+  const stopLossExit = isBullish ? entryPoint - offset : entryPoint + offset;
+  const rrRatio = '1 : 2.0';
+
+  const copyToClipboard = (text: string, field: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  const handleSimulateExecution = async () => {
+    if (!activeSignal) return;
+    setSimulationState({ status: 'simulating' });
+
+    // Send webhook if available
+    mt5Bridge.sendTestSignal({
+      action: isBullish ? 'BUY' : 'SELL',
+      symbol: asset.symbol,
+      lot: 0.1,
+      sl: 50,
+      tp: 100,
+      comment: activeSignal.strategyName,
+    });
+
+    onExecuteTrade?.(activeSignal);
+
+    setTimeout(() => {
+      setSimulationState({
+        status: 'success',
+        message: `Simulation executed at ${entryPoint.toFixed(asset.digits)}! Target: ${takeProfitExit.toFixed(asset.digits)}`,
+      });
+      setTimeout(() => setSimulationState({ status: 'idle' }), 4000);
+    }, 600);
+  };
 
   return (
     <div className="space-y-3 font-mono">
@@ -90,20 +151,29 @@ export const SignalAnalysisPanel: React.FC<SignalAnalysisPanelProps> = ({
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#2B2F36] pb-3">
           <div className="flex items-center space-x-3">
             <div
-              className={`w-10 h-10 rounded flex items-center justify-center font-bold text-lg ${
+              className={`w-11 h-11 rounded-lg flex items-center justify-center font-bold text-lg ${
                 isBullish
-                  ? 'bg-green-500/15 text-green-400 border border-green-500/40'
+                  ? 'bg-green-500/15 text-green-400 border border-green-500/40 shadow-[0_0_12px_rgba(16,185,129,0.2)]'
                   : isBearish
-                  ? 'bg-rose-500/15 text-rose-400 border border-rose-500/40'
+                  ? 'bg-rose-500/15 text-rose-400 border border-rose-500/40 shadow-[0_0_12px_rgba(239,68,68,0.2)]'
                   : 'bg-blue-500/15 text-blue-400 border border-blue-500/40'
               }`}
             >
-              {isBullish ? <ArrowUpRight className="w-5 h-5" /> : isBearish ? <ArrowDownRight className="w-5 h-5" /> : <Zap className="w-5 h-5" />}
+              {isBullish ? <ArrowUpRight className="w-6 h-6" /> : isBearish ? <ArrowDownRight className="w-6 h-6" /> : <Zap className="w-6 h-6" />}
             </div>
             <div>
-              <div className="text-[10px] text-[#848E9C] uppercase font-bold">PRIMARY SIGNAL</div>
+              <div className="text-[10px] text-[#848E9C] uppercase font-bold flex items-center gap-1.5">
+                <span>ACTIVE TRADING SIGNAL</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              </div>
               <h2 className="text-xl font-bold tracking-tight text-white flex items-center space-x-2">
-                <span>{activeSignal?.signalType || 'WAIT'}</span>
+                <span
+                  className={
+                    isBullish ? 'text-green-400' : isBearish ? 'text-rose-400' : 'text-blue-400'
+                  }
+                >
+                  {activeSignal?.signalType || 'WAIT / SCAN'}
+                </span>
                 {activeSignal?.targetDigit !== undefined && (
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/40">
                     Digit [{activeSignal.targetDigit}]
@@ -145,50 +215,139 @@ export const SignalAnalysisPanel: React.FC<SignalAnalysisPanelProps> = ({
               style={{ width: `${strength}%` }}
             />
           </div>
-          <p className="text-[10px] text-[#848E9C]">
-            *Algorithmically verified with mathematical single-strategy confluence.
-          </p>
-        </div>
-
-        {/* Signal Key Metrics Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-          <div className="p-2 rounded bg-[#0B0E11] border border-[#2B2F36]">
-            <div className="text-[9px] text-[#848E9C] uppercase">Winning Strategy</div>
-            <div className="text-[11px] font-bold text-white truncate mt-0.5" title={activeSignal?.strategyName}>
-              {activeSignal?.strategyName || 'Multi-Factor Engine'}
-            </div>
-          </div>
-          <div className="p-2 rounded bg-[#0B0E11] border border-[#2B2F36]">
-            <div className="text-[9px] text-[#848E9C] uppercase">Entry Ref</div>
-            <div className="text-[11px] font-mono font-bold text-blue-400 mt-0.5">
-              {activeSignal?.entryPrice.toFixed(asset.digits) || asset.currentPrice.toFixed(asset.digits)}
-            </div>
-          </div>
-          <div className="p-2 rounded bg-[#0B0E11] border border-[#2B2F36]">
-            <div className="text-[9px] text-[#848E9C] uppercase">Market Structure</div>
-            <div className="text-[11px] font-bold text-green-400 truncate mt-0.5">
-              {marketCondition}
-            </div>
-          </div>
-          <div className="p-2 rounded bg-[#0B0E11] border border-[#2B2F36]">
-            <div className="text-[9px] text-[#848E9C] uppercase">Risk Level</div>
-            <div className="text-[11px] font-bold text-green-300 mt-0.5 flex items-center space-x-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
-              <span>{activeSignal?.riskLevel || 'LOW'}</span>
-            </div>
+          <div className="flex items-center justify-between text-[10px] text-[#848E9C]">
+            <span>Strategy: <strong className="text-white">{activeSignal?.strategyName || 'Algorithmic Confluence'}</strong></span>
+            <span>Risk: <strong className="text-emerald-400 uppercase">{activeSignal?.riskLevel || 'LOW'}</strong></span>
           </div>
         </div>
 
-        {/* Execution & Action Buttons */}
-        <div className="pt-1 flex flex-wrap items-center gap-2">
-          <button
-            id="btn-execute-signal-now"
-            onClick={() => activeSignal && onExecuteTrade?.(activeSignal)}
-            className="flex-1 py-2 px-3 rounded bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center space-x-2 transition active:scale-98"
-          >
-            <Send className="w-3.5 h-3.5" />
-            <span>Simulate / Send Trade Signal to Bot</span>
-          </button>
+        {/* ============================================================ */}
+        {/* SIGNAL DISPLAY: ACTIVE SIGNAL, ENTRY POINT & EXIT POINTS     */}
+        {/* ============================================================ */}
+        <div
+          id="signal-entry-exit-display-box"
+          className="p-3 rounded-lg bg-[#0B0E11] border border-[#2B2F36] space-y-2.5 shadow-inner"
+        >
+          <div className="flex items-center justify-between border-b border-[#2B2F36] pb-1.5">
+            <div className="flex items-center space-x-1.5">
+              <Target className="w-3.5 h-3.5 text-blue-400" />
+              <span className="text-[11px] font-bold text-white uppercase tracking-wider">
+                Signal Entry & Exit Points
+              </span>
+            </div>
+            <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-blue-500/10 text-blue-300 border border-blue-500/30">
+              R:R {rrRatio}
+            </span>
+          </div>
+
+          {/* Entry & Exit Point Cards */}
+          <div className="space-y-2 text-xs">
+            {/* 1. ENTRY POINT */}
+            <div className="p-2.5 rounded bg-[#161A1E] border border-blue-500/40 flex items-center justify-between">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-7 h-7 rounded bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-xs">
+                  🎯
+                </div>
+                <div>
+                  <div className="text-[9px] uppercase font-bold text-[#848E9C] flex items-center gap-1.5">
+                    <span>ENTRY POINT</span>
+                    <span className="text-[8px] px-1 rounded bg-blue-500/15 text-blue-300">EXECUTION</span>
+                  </div>
+                  <div className="text-sm font-mono font-bold text-white tracking-wide">
+                    {entryPoint.toFixed(asset.digits)}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => copyToClipboard(entryPoint.toFixed(asset.digits), 'entry')}
+                className="py-1 px-2 rounded bg-[#0B0E11] hover:bg-[#1E2329] border border-[#2B2F36] text-[10px] text-[#848E9C] hover:text-white flex items-center gap-1 cursor-pointer transition"
+                title="Copy Entry Price"
+              >
+                {copiedField === 'entry' ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                <span>{copiedField === 'entry' ? 'Copied' : 'Copy'}</span>
+              </button>
+            </div>
+
+            {/* 2. EXIT POINT 1: TAKE PROFIT (TP / TARGET) */}
+            <div className="p-2.5 rounded bg-[#161A1E] border border-green-500/30 flex items-center justify-between">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-7 h-7 rounded bg-green-500/20 text-green-400 flex items-center justify-center font-bold text-xs">
+                  🟢
+                </div>
+                <div>
+                  <div className="text-[9px] uppercase font-bold text-green-400 flex items-center gap-1.5">
+                    <span>EXIT POINT (TAKE PROFIT / TP)</span>
+                    <span className="text-[8px] px-1 rounded bg-green-500/20 text-green-300 font-mono">+2.0R</span>
+                  </div>
+                  <div className="text-sm font-mono font-bold text-green-400 tracking-wide">
+                    {takeProfitExit.toFixed(asset.digits)}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => copyToClipboard(takeProfitExit.toFixed(asset.digits), 'tp')}
+                className="py-1 px-2 rounded bg-[#0B0E11] hover:bg-[#1E2329] border border-[#2B2F36] text-[10px] text-[#848E9C] hover:text-white flex items-center gap-1 cursor-pointer transition"
+                title="Copy Take Profit Price"
+              >
+                {copiedField === 'tp' ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                <span>{copiedField === 'tp' ? 'Copied' : 'Copy'}</span>
+              </button>
+            </div>
+
+            {/* 3. EXIT POINT 2: STOP LOSS (SL / INVALIDATION) */}
+            <div className="p-2.5 rounded bg-[#161A1E] border border-rose-500/30 flex items-center justify-between">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-7 h-7 rounded bg-rose-500/20 text-rose-400 flex items-center justify-center font-bold text-xs">
+                  🔴
+                </div>
+                <div>
+                  <div className="text-[9px] uppercase font-bold text-rose-400 flex items-center gap-1.5">
+                    <span>EXIT POINT (STOP LOSS / SL)</span>
+                    <span className="text-[8px] px-1 rounded bg-rose-500/20 text-rose-300 font-mono">-1.0R</span>
+                  </div>
+                  <div className="text-sm font-mono font-bold text-rose-400 tracking-wide">
+                    {stopLossExit.toFixed(asset.digits)}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => copyToClipboard(stopLossExit.toFixed(asset.digits), 'sl')}
+                className="py-1 px-2 rounded bg-[#0B0E11] hover:bg-[#1E2329] border border-[#2B2F36] text-[10px] text-[#848E9C] hover:text-white flex items-center gap-1 cursor-pointer transition"
+                title="Copy Stop Loss Price"
+              >
+                {copiedField === 'sl' ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                <span>{copiedField === 'sl' ? 'Copied' : 'Copy'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Simulation Feedback Alert */}
+          {simulationState.status === 'success' && (
+            <div className="p-2 rounded bg-green-500/15 border border-green-500/40 text-green-300 text-xs flex items-center gap-2 animate-in fade-in duration-150">
+              <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />
+              <span>{simulationState.message}</span>
+            </div>
+          )}
+
+          {/* Execution & Action Buttons (Simulate Button Area) */}
+          <div className="pt-2 flex flex-col sm:flex-row items-center gap-2">
+            <button
+              id="btn-simulate-trade-signal"
+              onClick={handleSimulateExecution}
+              disabled={simulationState.status === 'simulating'}
+              className="w-full sm:flex-1 py-2.5 px-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center space-x-2 transition cursor-pointer shadow-md shadow-blue-600/25 active:scale-98"
+            >
+              <Send className="w-4 h-4" />
+              <span>
+                {simulationState.status === 'simulating'
+                  ? 'Simulating Trade...'
+                  : 'Simulate Signal Execution'}
+              </span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -282,3 +441,4 @@ export const SignalAnalysisPanel: React.FC<SignalAnalysisPanelProps> = ({
     </div>
   );
 };
+
