@@ -43,10 +43,6 @@ export const SignalAnalysisPanel: React.FC<SignalAnalysisPanelProps> = ({
 }) => {
   const [countdown, setCountdown] = useState(activeSignal?.expiresInSeconds || 15);
   const [copiedField, setCopiedField] = useState<string | null>(null);
-  const [simulationState, setSimulationState] = useState<{
-    status: 'idle' | 'simulating' | 'success';
-    message?: string;
-  }>({ status: 'idle' });
 
   useEffect(() => {
     if (!activeSignal) return;
@@ -57,10 +53,10 @@ export const SignalAnalysisPanel: React.FC<SignalAnalysisPanelProps> = ({
     return () => clearInterval(interval);
   }, [activeSignal]);
 
-  const strength = activeSignal?.strength || 50;
+  const strength = activeSignal?.strength || 45;
 
   // Strength classification
-  let strengthLabel = 'NO TRADE';
+  let strengthLabel = 'WAITING / NO TRADE';
   let strengthBadgeColor = 'bg-[#0B0E11] text-[#848E9C] border border-[#2B2F36]';
   let strengthBarColor = 'bg-[#2B2F36]';
 
@@ -72,14 +68,14 @@ export const SignalAnalysisPanel: React.FC<SignalAnalysisPanelProps> = ({
     strengthLabel = 'STRONG';
     strengthBadgeColor = 'bg-blue-500/15 text-blue-400 border border-blue-500/40';
     strengthBarColor = 'bg-blue-500';
-  } else if (strength >= 70) {
+  } else if (strength >= 75) {
     strengthLabel = 'MODERATE';
     strengthBadgeColor = 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/40';
     strengthBarColor = 'bg-yellow-500';
-  } else if (strength >= 60) {
-    strengthLabel = 'WEAK';
-    strengthBadgeColor = 'bg-rose-500/15 text-rose-400 border border-rose-500/40';
-    strengthBarColor = 'bg-rose-500';
+  } else {
+    strengthLabel = 'BELOW THRESHOLD (<75%)';
+    strengthBadgeColor = 'bg-[#0B0E11] text-[#848E9C] border border-[#2B2F36]';
+    strengthBarColor = 'bg-[#2B2F36]';
   }
 
   const isBullish =
@@ -102,40 +98,15 @@ export const SignalAnalysisPanel: React.FC<SignalAnalysisPanelProps> = ({
   const isCrypto = asset.category === 'crypto';
   const offset = curPrice * (isForex ? 0.0018 : isCrypto ? 0.012 : 0.0035);
 
-  const entryPoint = curPrice;
-  const takeProfitExit = isBullish ? entryPoint + offset * 2.0 : entryPoint - offset * 2.0;
-  const stopLossExit = isBullish ? entryPoint - offset : entryPoint + offset;
+  const entryPoint = activeSignal?.entryPrice || curPrice;
+  const takeProfitExit = activeSignal?.takeProfit || (isBullish ? entryPoint + offset * 2.0 : entryPoint - offset * 2.0);
+  const stopLossExit = activeSignal?.stopLoss || (isBullish ? entryPoint - offset : entryPoint + offset);
   const rrRatio = '1 : 2.0';
 
   const copyToClipboard = (text: string, field: string) => {
     navigator.clipboard.writeText(text);
     setCopiedField(field);
     setTimeout(() => setCopiedField(null), 2000);
-  };
-
-  const handleSimulateExecution = async () => {
-    if (!activeSignal) return;
-    setSimulationState({ status: 'simulating' });
-
-    // Send webhook if available
-    mt5Bridge.sendTestSignal({
-      action: isBullish ? 'BUY' : 'SELL',
-      symbol: asset.symbol,
-      lot: 0.1,
-      sl: 50,
-      tp: 100,
-      comment: activeSignal.strategyName,
-    });
-
-    onExecuteTrade?.(activeSignal);
-
-    setTimeout(() => {
-      setSimulationState({
-        status: 'success',
-        message: `Simulation executed at ${entryPoint.toFixed(asset.digits)}! Target: ${takeProfitExit.toFixed(asset.digits)}`,
-      });
-      setTimeout(() => setSimulationState({ status: 'idle' }), 4000);
-    }, 600);
   };
 
   return (
@@ -152,28 +123,38 @@ export const SignalAnalysisPanel: React.FC<SignalAnalysisPanelProps> = ({
           <div className="flex items-center space-x-3">
             <div
               className={`w-11 h-11 rounded-lg flex items-center justify-center font-bold text-lg ${
-                isBullish
-                  ? 'bg-green-500/15 text-green-400 border border-green-500/40 shadow-[0_0_12px_rgba(16,185,129,0.2)]'
-                  : isBearish
-                  ? 'bg-rose-500/15 text-rose-400 border border-rose-500/40 shadow-[0_0_12px_rgba(239,68,68,0.2)]'
-                  : 'bg-blue-500/15 text-blue-400 border border-blue-500/40'
+                activeSignal
+                  ? isBullish
+                    ? 'bg-green-500/15 text-green-400 border border-green-500/40 shadow-[0_0_12px_rgba(16,185,129,0.2)]'
+                    : isBearish
+                    ? 'bg-rose-500/15 text-rose-400 border border-rose-500/40 shadow-[0_0_12px_rgba(239,68,68,0.2)]'
+                    : 'bg-blue-500/15 text-blue-400 border border-blue-500/40'
+                  : 'bg-[#0B0E11] text-[#848E9C] border border-[#2B2F36]'
               }`}
             >
-              {isBullish ? <ArrowUpRight className="w-6 h-6" /> : isBearish ? <ArrowDownRight className="w-6 h-6" /> : <Zap className="w-6 h-6" />}
+              {activeSignal ? (
+                isBullish ? <ArrowUpRight className="w-6 h-6" /> : isBearish ? <ArrowDownRight className="w-6 h-6" /> : <Zap className="w-6 h-6" />
+              ) : (
+                <Radio className="w-5 h-5 text-blue-400 animate-pulse" />
+              )}
             </div>
             <div>
               <div className="text-[10px] text-[#848E9C] uppercase font-bold flex items-center gap-1.5">
-                <span>ACTIVE TRADING SIGNAL</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span>{activeSignal ? 'ACTIVE TRADING SIGNAL' : 'MARKET SCANNER'}</span>
+                <span className={`w-1.5 h-1.5 rounded-full ${activeSignal ? 'bg-emerald-400 animate-pulse' : 'bg-blue-400 animate-ping'}`} />
               </div>
               <h2 className="text-xl font-bold tracking-tight text-white flex items-center space-x-2">
-                <span
-                  className={
-                    isBullish ? 'text-green-400' : isBearish ? 'text-rose-400' : 'text-blue-400'
-                  }
-                >
-                  {activeSignal?.signalType || 'WAIT / SCAN'}
-                </span>
+                {activeSignal ? (
+                  <span
+                    className={
+                      isBullish ? 'text-green-400' : isBearish ? 'text-rose-400' : 'text-blue-400'
+                    }
+                  >
+                    {activeSignal.signalType}
+                  </span>
+                ) : (
+                  <span className="text-[#848E9C]">NO ACTIVE SIGNAL</span>
+                )}
                 {activeSignal?.targetDigit !== undefined && (
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/40">
                     Digit [{activeSignal.targetDigit}]
@@ -183,16 +164,23 @@ export const SignalAnalysisPanel: React.FC<SignalAnalysisPanelProps> = ({
             </div>
           </div>
 
-          {/* Expiry Countdown */}
-          <div className="flex items-center space-x-2 bg-[#0B0E11] px-3 py-1.5 rounded border border-[#2B2F36]">
-            <Clock className="w-3.5 h-3.5 text-yellow-400 animate-pulse" />
-            <div>
-              <div className="text-[9px] text-[#848E9C] uppercase font-bold">Signal Validity</div>
-              <div className="text-xs font-mono font-bold text-yellow-300">
-                00:{countdown.toString().padStart(2, '0')}s
+          {/* Expiry Countdown or Scanning Badge */}
+          {activeSignal ? (
+            <div className="flex items-center space-x-2 bg-[#0B0E11] px-3 py-1.5 rounded border border-[#2B2F36]">
+              <Clock className="w-3.5 h-3.5 text-yellow-400 animate-pulse" />
+              <div>
+                <div className="text-[9px] text-[#848E9C] uppercase font-bold">Signal Validity</div>
+                <div className="text-xs font-mono font-bold text-yellow-300">
+                  00:{countdown.toString().padStart(2, '0')}s
+                </div>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex items-center space-x-1.5 bg-[#0B0E11] px-2.5 py-1.5 rounded border border-blue-500/30 text-blue-400 text-xs">
+              <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+              <span className="text-[10px] font-bold uppercase tracking-wider">Analyzing Live Chart</span>
+            </div>
+          )}
         </div>
 
         {/* Signal Strength Meter */}
@@ -205,19 +193,23 @@ export const SignalAnalysisPanel: React.FC<SignalAnalysisPanelProps> = ({
               </span>
             </div>
             <div className="text-xl font-bold font-mono text-white tracking-tight">
-              {strength}%
+              {activeSignal ? `${strength}%` : 'Scanning...'}
             </div>
           </div>
 
           <div className="w-full bg-[#0B0E11] rounded h-2.5 overflow-hidden p-0.5 border border-[#2B2F36]">
             <div
               className={`h-full rounded transition-all duration-500 ${strengthBarColor}`}
-              style={{ width: `${strength}%` }}
+              style={{ width: `${activeSignal ? strength : 25}%` }}
             />
           </div>
           <div className="flex items-center justify-between text-[10px] text-[#848E9C]">
-            <span>Strategy: <strong className="text-white">{activeSignal?.strategyName || 'Algorithmic Confluence'}</strong></span>
-            <span>Risk: <strong className="text-emerald-400 uppercase">{activeSignal?.riskLevel || 'LOW'}</strong></span>
+            <span>
+              Strategy: <strong className="text-white">{activeSignal?.strategyName || 'Multi-Strategy Confluence Scanner'}</strong>
+            </span>
+            <span>
+              Market Condition: <strong className="text-blue-400 uppercase">{marketCondition}</strong>
+            </span>
           </div>
         </div>
 
@@ -232,97 +224,122 @@ export const SignalAnalysisPanel: React.FC<SignalAnalysisPanelProps> = ({
             <div className="flex items-center space-x-1.5">
               <Target className="w-3.5 h-3.5 text-blue-400" />
               <span className="text-[11px] font-bold text-white uppercase tracking-wider">
-                Signal Entry & Exit Points
+                {activeSignal ? 'Active Signal Order Parameters' : 'Live Order Trigger Status'}
               </span>
             </div>
             <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-blue-500/10 text-blue-300 border border-blue-500/30">
-              R:R {rrRatio}
+              {activeSignal ? `R:R ${rrRatio}` : 'Awaiting Entry Setup'}
             </span>
           </div>
 
-          {/* Entry & Exit Point Cards */}
-          <div className="space-y-2 text-xs">
-            {/* 1. ENTRY POINT */}
-            <div className="p-2.5 rounded bg-[#161A1E] border border-blue-500/40 flex items-center justify-between">
-              <div className="flex items-center space-x-2.5">
-                <div className="w-7 h-7 rounded bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-xs">
-                  🎯
-                </div>
-                <div>
-                  <div className="text-[9px] uppercase font-bold text-[#848E9C] flex items-center gap-1.5">
-                    <span>ENTRY POINT</span>
-                    <span className="text-[8px] px-1 rounded bg-blue-500/15 text-blue-300">EXECUTION</span>
+          {activeSignal ? (
+            /* ACTIVE SIGNAL ENTRY & EXIT POINT CARDS */
+            <div className="space-y-2 text-xs">
+              {/* 1. ENTRY POINT */}
+              <div className="p-2.5 rounded bg-[#161A1E] border border-blue-500/40 flex items-center justify-between">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-7 h-7 rounded bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-xs">
+                    🎯
                   </div>
-                  <div className="text-sm font-mono font-bold text-white tracking-wide">
-                    {entryPoint.toFixed(asset.digits)}
+                  <div>
+                    <div className="text-[9px] uppercase font-bold text-[#848E9C] flex items-center gap-1.5">
+                      <span>ENTRY POINT</span>
+                      <span className="text-[8px] px-1 rounded bg-blue-500/15 text-blue-300">EXECUTION</span>
+                    </div>
+                    <div className="text-sm font-mono font-bold text-white tracking-wide">
+                      {entryPoint.toFixed(asset.digits)}
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => copyToClipboard(entryPoint.toFixed(asset.digits), 'entry')}
+                  className="py-1 px-2 rounded bg-[#0B0E11] hover:bg-[#1E2329] border border-[#2B2F36] text-[10px] text-[#848E9C] hover:text-white flex items-center gap-1 cursor-pointer transition"
+                  title="Copy Entry Price"
+                >
+                  {copiedField === 'entry' ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                  <span>{copiedField === 'entry' ? 'Copied' : 'Copy'}</span>
+                </button>
+              </div>
+
+              {/* 2. EXIT POINT 1: TAKE PROFIT (TP / TARGET) */}
+              <div className="p-2.5 rounded bg-[#161A1E] border border-green-500/30 flex items-center justify-between">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-7 h-7 rounded bg-green-500/20 text-green-400 flex items-center justify-center font-bold text-xs">
+                    🟢
+                  </div>
+                  <div>
+                    <div className="text-[9px] uppercase font-bold text-green-400 flex items-center gap-1.5">
+                      <span>EXIT POINT (TAKE PROFIT / TP)</span>
+                      <span className="text-[8px] px-1 rounded bg-green-500/20 text-green-300 font-mono">+2.0R</span>
+                    </div>
+                    <div className="text-sm font-mono font-bold text-green-400 tracking-wide">
+                      {takeProfitExit.toFixed(asset.digits)}
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => copyToClipboard(takeProfitExit.toFixed(asset.digits), 'tp')}
+                  className="py-1 px-2 rounded bg-[#0B0E11] hover:bg-[#1E2329] border border-[#2B2F36] text-[10px] text-[#848E9C] hover:text-white flex items-center gap-1 cursor-pointer transition"
+                  title="Copy Take Profit Price"
+                >
+                  {copiedField === 'tp' ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                  <span>{copiedField === 'tp' ? 'Copied' : 'Copy'}</span>
+                </button>
+              </div>
+
+              {/* 3. EXIT POINT 2: STOP LOSS (SL / INVALIDATION) */}
+              <div className="p-2.5 rounded bg-[#161A1E] border border-rose-500/30 flex items-center justify-between">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-7 h-7 rounded bg-rose-500/20 text-rose-400 flex items-center justify-center font-bold text-xs">
+                    🔴
+                  </div>
+                  <div>
+                    <div className="text-[9px] uppercase font-bold text-rose-400 flex items-center gap-1.5">
+                      <span>EXIT POINT (STOP LOSS / SL)</span>
+                      <span className="text-[8px] px-1 rounded bg-rose-500/20 text-rose-300 font-mono">-1.0R</span>
+                    </div>
+                    <div className="text-sm font-mono font-bold text-rose-400 tracking-wide">
+                      {stopLossExit.toFixed(asset.digits)}
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => copyToClipboard(stopLossExit.toFixed(asset.digits), 'sl')}
+                  className="py-1 px-2 rounded bg-[#0B0E11] hover:bg-[#1E2329] border border-[#2B2F36] text-[10px] text-[#848E9C] hover:text-white flex items-center gap-1 cursor-pointer transition"
+                  title="Copy Stop Loss Price"
+                >
+                  {copiedField === 'sl' ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                  <span>{copiedField === 'sl' ? 'Copied' : 'Copy'}</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* NO ACTIVE SIGNAL - SCANNING & WAITING VIEW */
+            <div className="space-y-2 text-xs">
+              <div className="p-3 rounded bg-[#161A1E] border border-[#2B2F36] space-y-2">
+                <div className="flex items-center space-x-2 text-yellow-400">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                  <div className="font-bold text-xs">Criteria Pending for {asset.symbol}</div>
+                </div>
+                <p className="text-[11px] text-[#848E9C] leading-relaxed">
+                  The analysis engine is actively streaming live chart data and calculating indicators. No strategy currently meets the strict ≥75% confidence entry criteria.
+                </p>
+                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-[#2B2F36] text-[10px]">
+                  <div>
+                    <span className="text-[#848E9C]">Current Price:</span>{' '}
+                    <strong className="text-white font-mono">{asset.currentPrice.toFixed(asset.digits)}</strong>
+                  </div>
+                  <div>
+                    <span className="text-[#848E9C]">Execution Rule:</span>{' '}
+                    <strong className="text-yellow-300">Wait for Confluence</strong>
                   </div>
                 </div>
               </div>
-
-              <button
-                onClick={() => copyToClipboard(entryPoint.toFixed(asset.digits), 'entry')}
-                className="py-1 px-2 rounded bg-[#0B0E11] hover:bg-[#1E2329] border border-[#2B2F36] text-[10px] text-[#848E9C] hover:text-white flex items-center gap-1 cursor-pointer transition"
-                title="Copy Entry Price"
-              >
-                {copiedField === 'entry' ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
-                <span>{copiedField === 'entry' ? 'Copied' : 'Copy'}</span>
-              </button>
             </div>
-
-            {/* 2. EXIT POINT 1: TAKE PROFIT (TP / TARGET) */}
-            <div className="p-2.5 rounded bg-[#161A1E] border border-green-500/30 flex items-center justify-between">
-              <div className="flex items-center space-x-2.5">
-                <div className="w-7 h-7 rounded bg-green-500/20 text-green-400 flex items-center justify-center font-bold text-xs">
-                  🟢
-                </div>
-                <div>
-                  <div className="text-[9px] uppercase font-bold text-green-400 flex items-center gap-1.5">
-                    <span>EXIT POINT (TAKE PROFIT / TP)</span>
-                    <span className="text-[8px] px-1 rounded bg-green-500/20 text-green-300 font-mono">+2.0R</span>
-                  </div>
-                  <div className="text-sm font-mono font-bold text-green-400 tracking-wide">
-                    {takeProfitExit.toFixed(asset.digits)}
-                  </div>
-                </div>
-              </div>
-
-              <button
-                onClick={() => copyToClipboard(takeProfitExit.toFixed(asset.digits), 'tp')}
-                className="py-1 px-2 rounded bg-[#0B0E11] hover:bg-[#1E2329] border border-[#2B2F36] text-[10px] text-[#848E9C] hover:text-white flex items-center gap-1 cursor-pointer transition"
-                title="Copy Take Profit Price"
-              >
-                {copiedField === 'tp' ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
-                <span>{copiedField === 'tp' ? 'Copied' : 'Copy'}</span>
-              </button>
-            </div>
-
-            {/* 3. EXIT POINT 2: STOP LOSS (SL / INVALIDATION) */}
-            <div className="p-2.5 rounded bg-[#161A1E] border border-rose-500/30 flex items-center justify-between">
-              <div className="flex items-center space-x-2.5">
-                <div className="w-7 h-7 rounded bg-rose-500/20 text-rose-400 flex items-center justify-center font-bold text-xs">
-                  🔴
-                </div>
-                <div>
-                  <div className="text-[9px] uppercase font-bold text-rose-400 flex items-center gap-1.5">
-                    <span>EXIT POINT (STOP LOSS / SL)</span>
-                    <span className="text-[8px] px-1 rounded bg-rose-500/20 text-rose-300 font-mono">-1.0R</span>
-                  </div>
-                  <div className="text-sm font-mono font-bold text-rose-400 tracking-wide">
-                    {stopLossExit.toFixed(asset.digits)}
-                  </div>
-                </div>
-              </div>
-
-              <button
-                onClick={() => copyToClipboard(stopLossExit.toFixed(asset.digits), 'sl')}
-                className="py-1 px-2 rounded bg-[#0B0E11] hover:bg-[#1E2329] border border-[#2B2F36] text-[10px] text-[#848E9C] hover:text-white flex items-center gap-1 cursor-pointer transition"
-                title="Copy Stop Loss Price"
-              >
-                {copiedField === 'sl' ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
-                <span>{copiedField === 'sl' ? 'Copied' : 'Copy'}</span>
-              </button>
-            </div>
-          </div>
+          )}
 
           {/* Live Chart Analysis Status Strip */}
           <div className="pt-1.5 flex items-center justify-between text-[10px] text-[#848E9C] border-t border-[#2B2F36]">
@@ -331,7 +348,7 @@ export const SignalAnalysisPanel: React.FC<SignalAnalysisPanelProps> = ({
               <span>Real-Time Chart Analysis Active</span>
             </span>
             <span className="font-mono text-[9px] text-[#848E9C]">
-              Auto-Synced to Live Feed
+              {asset.symbol} Live Feed
             </span>
           </div>
         </div>

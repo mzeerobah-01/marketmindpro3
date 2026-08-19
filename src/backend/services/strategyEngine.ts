@@ -48,6 +48,7 @@ export function evaluateAllStrategies(context: StrategyEvaluationContext): {
   // Indicators
   const ema10 = calculateEMA(closePrices, 10);
   const ema20 = calculateEMA(closePrices, 20);
+  const ema50 = calculateEMA(closePrices, 50);
   const ema100 = calculateEMA(closePrices, 100);
   const ema200 = calculateEMA(closePrices, 200);
   const smma = calculateSmoothedMA(closePrices, 14);
@@ -61,6 +62,7 @@ export function evaluateAllStrategies(context: StrategyEvaluationContext): {
 
   const curEma10 = ema10[ema10.length - 1];
   const curEma20 = ema20[ema20.length - 1];
+  const curEma50 = ema50[ema50.length - 1];
   const curEma100 = ema100[ema100.length - 1];
   const curEma200 = ema200[ema200.length - 1];
   const curRsi = rsi[rsi.length - 1];
@@ -788,59 +790,97 @@ export function evaluateAllStrategies(context: StrategyEvaluationContext): {
   // ==========================================
   // 5. CHART, FOREX & SMART MONEY CONCEPTS (SMC)
   // ==========================================
-  // SMC Order Block & Liquidity Sweeps
+  // SMC Order Block & Liquidity Sweeps (Strict Active Retest Only)
   const activeOB = smcOverlays.find(o => o.type === 'order_block');
   const activeFVG = smcOverlays.find(o => o.type === 'fvg');
-  const activeBOS = smcOverlays.find(o => o.type === 'bos');
 
-  if (activeOB && activeOB.direction === 'bullish' && lastCandle.low <= (activeOB.priceUpper || activeOB.price)) {
-    scores.push({
-      id: 'smc_order_block',
-      name: 'Smart Money Concepts — Bullish Order Block',
-      category: 'Chart & SMC',
-      confidence: 94,
-      signalType: isDeriv ? 'RISE' : 'BUY',
-      direction: 'BUY',
-      entryCriteria: 'Price retested institutional Bullish Order Block + rejection confirmation',
-      reason: 'Institutional liquidity sweep followed by mitigation at high-timeframe order block.',
-      winRateHistorical: 78.5,
-      eligible: true,
-    });
-  } else if (activeOB && activeOB.direction === 'bearish' && lastCandle.high >= (activeOB.priceLower || activeOB.price)) {
-    scores.push({
-      id: 'smc_order_block',
-      name: 'Smart Money Concepts — Bearish Order Block',
-      category: 'Chart & SMC',
-      confidence: 94,
-      signalType: isDeriv ? 'FALL' : 'SELL',
-      direction: 'SELL',
-      entryCriteria: 'Price retested institutional Bearish Order Block + rejection confirmation',
-      reason: 'Institutional supply zone test with rejection candle confirmation.',
-      winRateHistorical: 78.5,
-      eligible: true,
-    });
+  if (activeOB && activeOB.direction === 'bullish') {
+    const obTop = activeOB.priceUpper || activeOB.price * 1.001;
+    const obBottom = activeOB.priceLower || activeOB.price * 0.999;
+    // Price must currently be interacting within the OB band + have a bullish rejection candle
+    const isInteracting = lastCandle.low <= obTop && lastCandle.close >= obBottom;
+    const isBullishConfirmation = lastCandle.close > lastCandle.open && (lastCandle.close - lastCandle.low) > (lastCandle.high - lastCandle.close);
+
+    if (isInteracting && isBullishConfirmation) {
+      scores.push({
+        id: 'smc_order_block',
+        name: 'Smart Money Concepts — Bullish Order Block (Demand)',
+        category: 'Chart & SMC',
+        confidence: 94,
+        signalType: isDeriv ? 'RISE' : 'BUY',
+        direction: 'BUY',
+        entryCriteria: `Live candle tested Demand Zone [${obBottom.toFixed(asset.digits)} - ${obTop.toFixed(asset.digits)}] with buyer rejection wick`,
+        reason: 'Institutional liquidity mitigation at Demand Order Block confirmed by buyer absorption.',
+        winRateHistorical: 78.5,
+        eligible: true,
+      });
+    }
+  } else if (activeOB && activeOB.direction === 'bearish') {
+    const obTop = activeOB.priceUpper || activeOB.price * 1.001;
+    const obBottom = activeOB.priceLower || activeOB.price * 0.999;
+    const isInteracting = lastCandle.high >= obBottom && lastCandle.close <= obTop;
+    const isBearishConfirmation = lastCandle.close < lastCandle.open && (lastCandle.high - lastCandle.close) > (lastCandle.close - lastCandle.low);
+
+    if (isInteracting && isBearishConfirmation) {
+      scores.push({
+        id: 'smc_order_block',
+        name: 'Smart Money Concepts — Bearish Order Block (Supply)',
+        category: 'Chart & SMC',
+        confidence: 94,
+        signalType: isDeriv ? 'FALL' : 'SELL',
+        direction: 'SELL',
+        entryCriteria: `Live candle tested Supply Zone [${obBottom.toFixed(asset.digits)} - ${obTop.toFixed(asset.digits)}] with seller rejection wick`,
+        reason: 'Institutional supply mitigation at Order Block confirmed by seller absorption.',
+        winRateHistorical: 78.5,
+        eligible: true,
+      });
+    }
   }
 
-  // Fair Value Gap (FVG)
+  // Fair Value Gap (FVG) Mitigation (Strict Imbalance Retest)
   if (activeFVG) {
-    scores.push({
-      id: 'smc_fvg',
-      name: 'Fair Value Gap (FVG) Mitigation',
-      category: 'Chart & SMC',
-      confidence: 86,
-      signalType: activeFVG.direction === 'bullish' ? (isDeriv ? 'RISE' : 'BUY') : (isDeriv ? 'FALL' : 'SELL'),
-      direction: activeFVG.direction === 'bullish' ? 'BUY' : 'SELL',
-      entryCriteria: `Price returned to fill 3-candle imbalance zone (${activeFVG.price.toFixed(asset.digits)})`,
-      reason: 'Market rebalancing liquidity inefficiency before structural continuation.',
-      winRateHistorical: 72.0,
-      eligible: true,
-    });
+    const fvgTolerance = asset.currentPrice * 0.0012;
+    const isTestingFVG = Math.abs(lastCandle.close - activeFVG.price) <= fvgTolerance;
+    if (isTestingFVG) {
+      if (activeFVG.direction === 'bullish' && lastCandle.close > lastCandle.open) {
+        scores.push({
+          id: 'smc_fvg',
+          name: 'Fair Value Gap (FVG) Mitigation',
+          category: 'Chart & SMC',
+          confidence: 86,
+          signalType: isDeriv ? 'RISE' : 'BUY',
+          direction: 'BUY',
+          entryCriteria: `Price returned to fill 3-candle imbalance zone (${activeFVG.price.toFixed(asset.digits)})`,
+          reason: 'Market rebalancing liquidity inefficiency before structural continuation.',
+          winRateHistorical: 72.0,
+          eligible: true,
+        });
+      } else if (activeFVG.direction === 'bearish' && lastCandle.close < lastCandle.open) {
+        scores.push({
+          id: 'smc_fvg',
+          name: 'Fair Value Gap (FVG) Mitigation',
+          category: 'Chart & SMC',
+          confidence: 86,
+          signalType: isDeriv ? 'FALL' : 'SELL',
+          direction: 'SELL',
+          entryCriteria: `Price returned to fill 3-candle imbalance zone (${activeFVG.price.toFixed(asset.digits)})`,
+          reason: 'Market rebalancing liquidity inefficiency before structural continuation.',
+          winRateHistorical: 72.0,
+          eligible: true,
+        });
+      }
+    }
   }
 
-  // EMA 20/200 Trend Pullback Strategy
-  const is20Above200 = curEma20 > curEma200;
-  const isPullbackTo20 = Math.abs(lastCandle.close - curEma20) < 0.005 * lastCandle.close;
-  if (is20Above200 && isPullbackTo20 && lastCandle.close > lastCandle.open) {
+  // EMA 20/200 Trend Dynamic Pullback Strategy
+  const is20Above50 = curEma20 > curEma50;
+  const is50Above200 = curEma50 > curEma200;
+  const is20Below50 = curEma20 < curEma50;
+  const is50Below200 = curEma50 < curEma200;
+  const distTo20Pct = Math.abs(lastCandle.close - curEma20) / curEma20;
+  const isTightTo20 = distTo20Pct <= 0.0015; // within 0.15% of EMA 20
+
+  if (is20Above50 && is50Above200 && isTightTo20 && lastCandle.close >= curEma20 && lastCandle.close > lastCandle.open) {
     scores.push({
       id: 'ema_20_200_pullback',
       name: 'EMA 20/200 Trend Pullback',
@@ -848,12 +888,12 @@ export function evaluateAllStrategies(context: StrategyEvaluationContext): {
       confidence: 89,
       signalType: isDeriv ? 'RISE' : 'BUY',
       direction: 'BUY',
-      entryCriteria: 'Established uptrend (EMA 20 > EMA 200) + pullback to 20 EMA dynamic support',
+      entryCriteria: `Established bull trend (EMA 20 > 50 > 200) + dynamic 20 EMA bounce at ${curEma20.toFixed(asset.digits)}`,
       reason: 'Dynamic support touch in primary trend direction with buyer absorption.',
       winRateHistorical: 73.8,
       eligible: true,
     });
-  } else if (!is20Above200 && isPullbackTo20 && lastCandle.close < lastCandle.open) {
+  } else if (is20Below50 && is50Below200 && isTightTo20 && lastCandle.close <= curEma20 && lastCandle.close < lastCandle.open) {
     scores.push({
       id: 'ema_20_200_pullback',
       name: 'EMA 20/200 Trend Pullback',
@@ -861,7 +901,7 @@ export function evaluateAllStrategies(context: StrategyEvaluationContext): {
       confidence: 89,
       signalType: isDeriv ? 'FALL' : 'SELL',
       direction: 'SELL',
-      entryCriteria: 'Established downtrend (EMA 20 < EMA 200) + pullback to 20 EMA dynamic resistance',
+      entryCriteria: `Established bear trend (EMA 20 < 50 < 200) + dynamic 20 EMA rejection at ${curEma20.toFixed(asset.digits)}`,
       reason: 'Dynamic resistance test in primary downtrend with seller reaction.',
       winRateHistorical: 73.8,
       eligible: true,
@@ -869,7 +909,7 @@ export function evaluateAllStrategies(context: StrategyEvaluationContext): {
   }
 
   // Quasimodo (QM) Pattern & Price Action Traps
-  if (lastCandle.isEngulfing === 'bullish' && curRsi < 40) {
+  if (lastCandle.isEngulfing === 'bullish' && curRsi <= 35) {
     scores.push({
       id: 'bear_trap_reversal',
       name: 'Price Action Trap — Bear Trap Reversal',
@@ -877,12 +917,12 @@ export function evaluateAllStrategies(context: StrategyEvaluationContext): {
       confidence: 88,
       signalType: isDeriv ? 'RISE' : 'BUY',
       direction: 'BUY',
-      entryCriteria: 'Support sweep followed by strong Bullish Engulfing reclaim',
+      entryCriteria: `Support liquidity sweep followed by Bullish Engulfing with RSI at ${curRsi.toFixed(1)}`,
       reason: 'Sellers trapped beneath support; smart money accumulation confirms upside drive.',
       winRateHistorical: 74.5,
       eligible: true,
     });
-  } else if (lastCandle.isEngulfing === 'bearish' && curRsi > 60) {
+  } else if (lastCandle.isEngulfing === 'bearish' && curRsi >= 65) {
     scores.push({
       id: 'bull_trap_reversal',
       name: 'Price Action Trap — Bull Trap Reversal',
@@ -890,7 +930,7 @@ export function evaluateAllStrategies(context: StrategyEvaluationContext): {
       confidence: 88,
       signalType: isDeriv ? 'FALL' : 'SELL',
       direction: 'SELL',
-      entryCriteria: 'Resistance breakout failure followed by strong Bearish Engulfing',
+      entryCriteria: `Resistance breakout failure followed by Bearish Engulfing with RSI at ${curRsi.toFixed(1)}`,
       reason: 'Buyers trapped above breakout level; aggressive liquidation down.',
       winRateHistorical: 74.5,
       eligible: true,
@@ -926,17 +966,17 @@ export function evaluateAllStrategies(context: StrategyEvaluationContext): {
     });
   }
 
-  // Micro-Tick Scalping
+  // Micro-Tick Scalping (requires active momentum stream)
   if (ticks.length >= 4) {
     const recentTicks = ticks.slice(-4);
-    const allUp = recentTicks.every((t, i) => i === 0 || t.price >= recentTicks[i - 1].price);
-    const allDown = recentTicks.every((t, i) => i === 0 || t.price <= recentTicks[i - 1].price);
+    const allUp = recentTicks.every((t, i) => i === 0 || t.price > recentTicks[i - 1].price);
+    const allDown = recentTicks.every((t, i) => i === 0 || t.price < recentTicks[i - 1].price);
     if (allUp) {
       scores.push({
         id: 'micro_tick_scalping',
         name: 'Micro-Tick Momentum Scalping',
         category: 'Timing & Scalping',
-        confidence: 76,
+        confidence: 78,
         signalType: isDeriv ? 'RISE' : 'BUY',
         direction: 'BUY',
         entryCriteria: '4 consecutive ascending ticks with tight momentum spread',
@@ -949,7 +989,7 @@ export function evaluateAllStrategies(context: StrategyEvaluationContext): {
         id: 'micro_tick_scalping',
         name: 'Micro-Tick Momentum Scalping',
         category: 'Timing & Scalping',
-        confidence: 76,
+        confidence: 78,
         signalType: isDeriv ? 'FALL' : 'SELL',
         direction: 'SELL',
         entryCriteria: '4 consecutive descending ticks with tight momentum spread',
@@ -963,25 +1003,25 @@ export function evaluateAllStrategies(context: StrategyEvaluationContext): {
   // Sort strictly by confidence descending
   scores.sort((a, b) => b.confidence - a.confidence);
 
-  // If no scores generated, add a fallback WAIT score
+  // Mandatory Single Strategy Rule: Highest-ranked eligible strategy with confidence >= 75 is selected
+  const eligibleScores = scores.filter(s => s.eligible && s.confidence >= 75 && s.signalType !== 'WAIT');
+  const winningStrategy = eligibleScores.length > 0 ? eligibleScores[0] : null;
+
+  // If no active winning strategy, provide market status
   if (scores.length === 0) {
     scores.push({
       id: 'market_scan_wait',
       name: 'Market Structure Scanner',
       category: 'Timing & Scalping',
-      confidence: 50,
+      confidence: 45,
       signalType: 'WAIT',
       direction: 'NEUTRAL',
-      entryCriteria: 'Awaiting high-confluence entry alignment',
-      reason: 'No single strategy currently meets minimum confidence threshold (≥60%).',
+      entryCriteria: 'Awaiting high-confluence entry alignment across technical indicators',
+      reason: 'No strategy currently satisfies strict entry confluence criteria (≥75% confidence threshold).',
       winRateHistorical: 0,
       eligible: false,
     });
   }
-
-  // Mandatory Single Strategy Rule: Highest-ranked eligible strategy is selected
-  const eligibleScores = scores.filter(s => s.eligible && s.confidence >= 60);
-  const winningStrategy = eligibleScores.length > 0 ? eligibleScores[0] : scores[0];
 
   return {
     scores,

@@ -233,28 +233,44 @@ export const MT5AnalysisView: React.FC<MT5AnalysisViewProps> = ({
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
               <div className="p-2 rounded bg-[#0B0E11] border border-[#2B2F36]">
-                <div className="text-[9px] text-[#848E9C] uppercase font-bold">Signal Type</div>
-                <div className="text-xs font-bold text-blue-400 mt-0.5 flex items-center space-x-1">
-                  {isBuy ? <ArrowUpRight className="w-3.5 h-3.5 text-green-400" /> : <ArrowDownRight className="w-3.5 h-3.5 text-rose-400" />}
-                  <span>{isBuy ? 'BUY / LONG' : 'SELL / SHORT'}</span>
+                <div className="text-[9px] text-[#848E9C] uppercase font-bold">Signal Status</div>
+                <div className="text-xs font-bold mt-0.5 flex items-center space-x-1">
+                  {activeSignal ? (
+                    isBuy ? (
+                      <>
+                        <ArrowUpRight className="w-3.5 h-3.5 text-green-400" />
+                        <span className="text-green-400">BUY / LONG</span>
+                      </>
+                    ) : (
+                      <>
+                        <ArrowDownRight className="w-3.5 h-3.5 text-rose-400" />
+                        <span className="text-rose-400">SELL / SHORT</span>
+                      </>
+                    )
+                  ) : (
+                    <>
+                      <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+                      <span className="text-[#848E9C]">SCANNING MARKET</span>
+                    </>
+                  )}
                 </div>
               </div>
               <div className="p-2 rounded bg-[#0B0E11] border border-blue-500/30">
                 <div className="text-[9px] text-[#848E9C] uppercase font-bold">🎯 Entry Point</div>
                 <div className="text-xs font-mono font-bold text-white mt-0.5">
-                  {calculatedEntry.toFixed(selectedMarket.digits)}
+                  {activeSignal ? calculatedEntry.toFixed(selectedMarket.digits) : 'Awaiting Trigger'}
                 </div>
               </div>
               <div className="p-2 rounded bg-[#0B0E11] border border-rose-500/30">
                 <div className="text-[9px] text-rose-400 uppercase font-bold">🔴 Exit Point (SL)</div>
                 <div className="text-xs font-mono font-bold text-rose-400 mt-0.5">
-                  {calculatedSL.toFixed(selectedMarket.digits)}
+                  {activeSignal ? calculatedSL.toFixed(selectedMarket.digits) : 'Pending Setup'}
                 </div>
               </div>
               <div className="p-2 rounded bg-[#0B0E11] border border-green-500/30">
                 <div className="text-[9px] text-green-400 uppercase font-bold">🟢 Exit Point (TP)</div>
                 <div className="text-xs font-mono font-bold text-green-400 mt-0.5">
-                  {calculatedTP.toFixed(selectedMarket.digits)}
+                  {activeSignal ? calculatedTP.toFixed(selectedMarket.digits) : 'Pending Setup'}
                 </div>
               </div>
             </div>

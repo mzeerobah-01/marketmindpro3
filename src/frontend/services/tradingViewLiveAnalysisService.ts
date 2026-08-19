@@ -367,39 +367,55 @@ class TradingViewLiveAnalysisService {
 
     const scores: StrategyScore[] = [];
 
-    // 1. Smart Money Concepts (SMC) Strategy
+    // 1. Smart Money Concepts (SMC) Strategy - Strict Active Retest Only
     const recentOB = smc.find(s => s.type === 'order_block');
-
     if (recentOB && recentOB.direction === 'bullish') {
-      scores.push({
-        id: 'smc_order_block',
-        name: 'SMC Institutional Order Block (Bullish Demand)',
-        category: 'Chart & SMC',
-        confidence: 94,
-        signalType: 'BUY',
-        direction: 'BUY',
-        entryCriteria: 'Price tapped into unmitigated H1 Bullish Demand Order Block',
-        reason: 'Institutional liquidity footprint detected. High probability reversal zone.',
-        winRateHistorical: 78.5,
-        eligible: true,
-      });
+      const obTop = recentOB.priceUpper || recentOB.price * 1.001;
+      const obBottom = recentOB.priceLower || recentOB.price * 0.999;
+      const isInteracting = lastCandle.low <= obTop && lastCandle.close >= obBottom;
+      const isBullishBounce = lastCandle.close > lastCandle.open && (lastCandle.close - lastCandle.low) > (lastCandle.high - lastCandle.close);
+
+      if (isInteracting && isBullishBounce) {
+        scores.push({
+          id: 'smc_order_block',
+          name: 'SMC Institutional Order Block (Bullish Demand)',
+          category: 'Chart & SMC',
+          confidence: 94,
+          signalType: 'BUY',
+          direction: 'BUY',
+          entryCriteria: `Live candle tested Demand Zone [${obBottom.toFixed(asset.digits)} - ${obTop.toFixed(asset.digits)}] with buyer rejection wick`,
+          reason: 'Institutional liquidity footprint detected. High probability reversal zone.',
+          winRateHistorical: 78.5,
+          eligible: true,
+        });
+      }
     } else if (recentOB && recentOB.direction === 'bearish') {
-      scores.push({
-        id: 'smc_order_block',
-        name: 'SMC Institutional Order Block (Bearish Supply)',
-        category: 'Chart & SMC',
-        confidence: 93,
-        signalType: 'SELL',
-        direction: 'SELL',
-        entryCriteria: 'Price mitigated Bearish Supply Zone with rejection wick',
-        reason: 'Smart Money distribution zone triggered. Bearish expansion expected.',
-        winRateHistorical: 77.2,
-        eligible: true,
-      });
+      const obTop = recentOB.priceUpper || recentOB.price * 1.001;
+      const obBottom = recentOB.priceLower || recentOB.price * 0.999;
+      const isInteracting = lastCandle.high >= obBottom && lastCandle.close <= obTop;
+      const isBearishBounce = lastCandle.close < lastCandle.open && (lastCandle.high - lastCandle.close) > (lastCandle.close - lastCandle.low);
+
+      if (isInteracting && isBearishBounce) {
+        scores.push({
+          id: 'smc_order_block',
+          name: 'SMC Institutional Order Block (Bearish Supply)',
+          category: 'Chart & SMC',
+          confidence: 94,
+          signalType: 'SELL',
+          direction: 'SELL',
+          entryCriteria: `Live candle tested Supply Zone [${obBottom.toFixed(asset.digits)} - ${obTop.toFixed(asset.digits)}] with seller rejection wick`,
+          reason: 'Smart Money distribution zone triggered. Bearish expansion expected.',
+          winRateHistorical: 77.2,
+          eligible: true,
+        });
+      }
     }
 
-    // 2. EMA Trend Pullback (20/50/200) Strategy
-    if (isBullTrend && lastCandle.low <= curEma20 * 1.001 && lastCandle.close >= curEma20) {
+    // 2. EMA Dynamic Pullback (20/50/200) Strategy - Strict Alignment & Retest
+    const distTo20Pct = Math.abs(lastCandle.close - curEma20) / curEma20;
+    const isTightTo20 = distTo20Pct <= 0.0015; // within 0.15%
+
+    if (isBullTrend && isTightTo20 && lastCandle.close >= curEma20 && lastCandle.close > lastCandle.open) {
       scores.push({
         id: 'ema_trend_pullback',
         name: 'EMA Dynamic Confluence Pullback (20/50/200)',
@@ -407,28 +423,28 @@ class TradingViewLiveAnalysisService {
         confidence: 91,
         signalType: 'BUY',
         direction: 'BUY',
-        entryCriteria: 'Bullish bounce off EMA 20 support aligned with EMA 200 macro trend',
+        entryCriteria: `Bullish bounce off EMA 20 support (${curEma20.toFixed(asset.digits)}) aligned with 200 EMA macro bull trend`,
         reason: 'Trend continuation with high dynamic support alignment.',
         winRateHistorical: 74.8,
         eligible: true,
       });
-    } else if (isBearTrend && lastCandle.high >= curEma20 * 0.999 && lastCandle.close <= curEma20) {
+    } else if (isBearTrend && isTightTo20 && lastCandle.close <= curEma20 && lastCandle.close < lastCandle.open) {
       scores.push({
         id: 'ema_trend_pullback',
         name: 'EMA Dynamic Confluence Pullback (20/50/200)',
         category: 'Chart & SMC',
-        confidence: 90,
+        confidence: 91,
         signalType: 'SELL',
         direction: 'SELL',
-        entryCriteria: 'Bearish rejection off EMA 20 resistance aligned with EMA 200 macro trend',
+        entryCriteria: `Bearish rejection off EMA 20 resistance (${curEma20.toFixed(asset.digits)}) aligned with 200 EMA macro bear trend`,
         reason: 'Downward trend continuation following healthy corrective pullback.',
         winRateHistorical: 74.2,
         eligible: true,
       });
     }
 
-    // 3. RSI Oversold/Overbought Reversal Strategy
-    if (curRsi < 32 && curStochK > curStochD) {
+    // 3. RSI Oversold/Overbought Reversal Strategy - Strict Thresholds (<30 or >70)
+    if (curRsi < 30 && curStochK > curStochD && curStochK < 35) {
       scores.push({
         id: 'rsi_divergence_oversold',
         name: 'RSI Oversold Momentum Reversal',
@@ -436,28 +452,28 @@ class TradingViewLiveAnalysisService {
         confidence: 88,
         signalType: 'BUY',
         direction: 'BUY',
-        entryCriteria: `RSI (${curRsi.toFixed(1)}) deeply oversold with Stochastic bull crossover`,
+        entryCriteria: `RSI (${curRsi.toFixed(1)} < 30) deeply oversold with Stochastic bull crossover`,
         reason: 'Extreme seller exhaustion with upward momentum trigger.',
         winRateHistorical: 72.5,
         eligible: true,
       });
-    } else if (curRsi > 68 && curStochK < curStochD) {
+    } else if (curRsi > 70 && curStochK < curStochD && curStochK > 65) {
       scores.push({
         id: 'rsi_divergence_overbought',
         name: 'RSI Overbought Momentum Reversal',
         category: 'Timing & Scalping',
-        confidence: 87,
+        confidence: 88,
         signalType: 'SELL',
         direction: 'SELL',
-        entryCriteria: `RSI (${curRsi.toFixed(1)}) overbought with Stochastic bear crossover`,
+        entryCriteria: `RSI (${curRsi.toFixed(1)} > 70) overbought with Stochastic bear crossover`,
         reason: 'Buyer exhaustion at resistance ceiling.',
         winRateHistorical: 71.8,
         eligible: true,
       });
     }
 
-    // 4. MACD Zero-Line Expansion Strategy
-    if (curMacdHist > 0 && curMacd > curMacdSignal && curPlusDI > curMinusDI) {
+    // 4. MACD Zero-Line Momentum Expansion Strategy - Strict DI & ADX
+    if (curMacdHist > 0 && curMacd > curMacdSignal && curPlusDI > curMinusDI && curAdx > 25 && curMacd > 0) {
       scores.push({
         id: 'macd_trend_expansion',
         name: 'MACD Trend & Momentum Expansion',
@@ -465,20 +481,20 @@ class TradingViewLiveAnalysisService {
         confidence: 86,
         signalType: 'BUY',
         direction: 'BUY',
-        entryCriteria: 'MACD line expanding above Signal line with positive histogram bars',
+        entryCriteria: `MACD (+${curMacd.toFixed(3)}) expanding above zero line with ADX (${curAdx.toFixed(1)})`,
         reason: 'Bullish momentum acceleration across multi-timeframe moving averages.',
         winRateHistorical: 70.4,
         eligible: true,
       });
-    } else if (curMacdHist < 0 && curMacd < curMacdSignal && curMinusDI > curPlusDI) {
+    } else if (curMacdHist < 0 && curMacd < curMacdSignal && curMinusDI > curPlusDI && curAdx > 25 && curMacd < 0) {
       scores.push({
         id: 'macd_trend_expansion',
         name: 'MACD Trend & Momentum Expansion',
         category: 'Chart & SMC',
-        confidence: 85,
+        confidence: 86,
         signalType: 'SELL',
         direction: 'SELL',
-        entryCriteria: 'MACD line expanding below Signal line with negative histogram bars',
+        entryCriteria: `MACD (${curMacd.toFixed(3)}) expanding below zero line with ADX (${curAdx.toFixed(1)})`,
         reason: 'Bearish momentum expansion accelerating downward.',
         winRateHistorical: 69.9,
         eligible: true,
@@ -489,7 +505,7 @@ class TradingViewLiveAnalysisService {
     if (bb.upper.length > 0) {
       const curUpper = bb.upper[bb.upper.length - 1];
       const curLower = bb.lower[bb.lower.length - 1];
-      if (lastCandle.close > curUpper && curAdx > 22) {
+      if (lastCandle.close > curUpper && curAdx > 26 && lastCandle.close > lastCandle.open) {
         scores.push({
           id: 'bb_upper_expansion',
           name: 'Bollinger Band Volatility Breakout',
@@ -497,20 +513,20 @@ class TradingViewLiveAnalysisService {
           confidence: 84,
           signalType: 'BUY',
           direction: 'BUY',
-          entryCriteria: 'Candle closed outside Upper Bollinger Band with expanding bandwidth',
+          entryCriteria: `Candle closed above Upper Bollinger Band (${curUpper.toFixed(asset.digits)}) with expanding volatility`,
           reason: 'High volatility expansion favoring continuous impulse.',
           winRateHistorical: 68.9,
           eligible: true,
         });
-      } else if (lastCandle.close < curLower && curAdx > 22) {
+      } else if (lastCandle.close < curLower && curAdx > 26 && lastCandle.close < lastCandle.open) {
         scores.push({
           id: 'bb_lower_expansion',
           name: 'Bollinger Band Volatility Breakout',
           category: 'Breakout & Trap',
-          confidence: 83,
+          confidence: 84,
           signalType: 'SELL',
           direction: 'SELL',
-          entryCriteria: 'Candle closed below Lower Bollinger Band with expanding bandwidth',
+          entryCriteria: `Candle closed below Lower Bollinger Band (${curLower.toFixed(asset.digits)}) with expanding volatility`,
           reason: 'Downward volatility expansion underway.',
           winRateHistorical: 68.2,
           eligible: true,
@@ -520,30 +536,30 @@ class TradingViewLiveAnalysisService {
 
     // Sort by confidence descending
     scores.sort((a, b) => b.confidence - a.confidence);
-    const winner = scores.length > 0 ? scores[0] : null;
+    const eligibleWinner = scores.find(s => s.eligible && s.confidence >= 75 && s.signalType !== 'WAIT');
 
     let activeSignal: ActiveSignal | null = null;
-    if (winner && winner.confidence >= 65) {
+    if (eligibleWinner) {
       const entryPrice = lastCandle.close;
       const isForex = asset.category === 'forex';
       const isCrypto = asset.category === 'crypto';
       const offset = entryPrice * (isForex ? 0.0018 : isCrypto ? 0.012 : 0.0035);
 
-      const isLong = winner.signalType === 'BUY' || winner.signalType === 'RISE';
+      const isLong = eligibleWinner.signalType === 'BUY' || eligibleWinner.signalType === 'RISE';
       const tp = isLong ? entryPrice + offset * 2.0 : entryPrice - offset * 2.0;
       const sl = isLong ? entryPrice - offset : entryPrice + offset;
 
       activeSignal = {
-        id: `sig_${Date.now()}`,
+        id: `sig_${asset.id}_${Date.now()}`,
         platform: 'mt5',
         marketId: asset.id,
         marketName: asset.name,
         marketSymbol: asset.symbol,
-        strategyId: winner.id,
-        strategyName: winner.name,
-        signalType: winner.signalType,
-        direction: winner.direction as any,
-        strength: winner.confidence,
+        strategyId: eligibleWinner.id,
+        strategyName: eligibleWinner.name,
+        signalType: eligibleWinner.signalType,
+        direction: eligibleWinner.direction as any,
+        strength: eligibleWinner.confidence,
         entryPrice,
         stopLoss: sl,
         takeProfit: tp,
@@ -551,8 +567,8 @@ class TradingViewLiveAnalysisService {
         generatedAt: Date.now(),
         expiresInSeconds: 15,
         initialExpirySeconds: 15,
-        riskLevel: winner.confidence >= 90 ? 'LOW' : winner.confidence >= 80 ? 'MEDIUM' : 'HIGH',
-        recommendedContract: `${winner.signalType} Signal`,
+        riskLevel: eligibleWinner.confidence >= 90 ? 'LOW' : eligibleWinner.confidence >= 80 ? 'MEDIUM' : 'HIGH',
+        recommendedContract: `${eligibleWinner.signalType} Market Order`,
       };
     }
 

@@ -608,6 +608,8 @@ export default function App() {
       };
     } else {
       // 2. TradingView / MT5 Asset - Hook into live real-time analysis service
+      setCandles([]);
+      setTicks([]);
       tradingViewLiveAnalysis.setMarketAndInterval(currentActiveAsset, '15M');
       
       const unsubAnalysis = tradingViewLiveAnalysis.subscribe((result) => {
