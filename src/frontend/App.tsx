@@ -38,6 +38,45 @@ import { derivWebSocket } from './services/derivWebSocketService';
 import { mt5Bridge } from './services/mt5BridgeService';
 import { tradingViewLiveAnalysis } from './services/tradingViewLiveAnalysisService';
 
+const DEFAULT_ACCOUNTS: AccountState = {
+  deriv: {
+    demoBalance: 10000.0,
+    realBalance: 1250.0,
+    currency: 'USD',
+    connected: true,
+    activeAccount: 'demo',
+    lastSync: 'Just now',
+  },
+  mt5: {
+    demoBalance: 25000.0,
+    realBalance: 2500.0,
+    currency: 'USD',
+    connected: true,
+    activeAccount: 'demo',
+    lastSync: 'Just now',
+  },
+  systemStatus: 'operational',
+  marketDataLive: true,
+  analysisEngineRunning: true,
+};
+
+const DEFAULT_RISK_SETTINGS: RiskManagementSettings = {
+  accountType: 'deriv',
+  riskPercentage: 2.0,
+  maxDailyLoss: 100.0,
+  dailyProfitTarget: 250.0,
+  plannedTradesCount: 10,
+  stakeMethod: 'percentage',
+  circuitBreakerEnabled: true,
+  consecutiveLossLimit: 3,
+  maxDrawdownLimit: 6.0,
+  currentDrawdown: 1.8,
+  dailyLossTotal: 0.0,
+  dailyProfitTotal: 65.0,
+  consecutiveLosses: 0,
+  isLocked: false,
+};
+
 // Default Deriv Markets
 const INITIAL_DERIV_MARKETS: MarketAsset[] = [
   {
@@ -727,9 +766,13 @@ export default function App() {
     };
   }, [currentActiveAsset, candles, ticks, digitStats, lastTickDigit, strategies]);
 
-  // Determine Active Signal (The WINNING strategy with highest confidence score)
+  // Determine Active Signal (The WINNING strategy with highest confidence score >= 75%)
   const activeSignal: ActiveSignal | null = useMemo(() => {
-    if (!winningStrategy || winningStrategy.confidence < 60) return null;
+    if (!winningStrategy || winningStrategy.confidence < 75 || winningStrategy.signalType === 'WAIT') return null;
+
+    const isForex = currentActiveAsset.category === 'forex';
+    const isCrypto = currentActiveAsset.category === 'crypto';
+    const validitySec = isForex || isCrypto ? 900 : 300;
 
     return {
       id: `sig-${winningStrategy.id}-${Date.now()}`,
@@ -743,64 +786,60 @@ export default function App() {
       strength: winningStrategy.confidence,
       entryPrice: currentPrice,
       recommendedContract: winningStrategy.signalType.includes('RISE') ? 'Rise Contract (1-5 Ticks)' : 'Fall Contract (1-5 Ticks)',
-      timeframe: '1M',
+      timeframe: isForex || isCrypto ? '15M' : '1M',
       marketCondition,
-      riskLevel: winningStrategy.confidence >= 85 ? 'LOW' : winningStrategy.confidence >= 75 ? 'MEDIUM' : 'HIGH',
+      riskLevel: winningStrategy.confidence >= 85 ? 'LOW' : 'MEDIUM',
       generatedAt: Date.now(),
-      expiresInSeconds: 15,
-      initialExpirySeconds: 15,
+      expiresInSeconds: validitySec,
+      initialExpirySeconds: validitySec,
       targetDigit: winningStrategy.targetDigit,
     };
   }, [winningStrategy, currentActiveAsset, currentPrice, marketCondition]);
 
-  // Separate Deriv and MT5 signals for Global Dashboard
+  // Separate Deriv and MT5 signals for Global Dashboard (Strictly live data, no fake fallbacks)
   const derivSignal = useMemo(() => {
     if (currentActiveAsset.platform === 'deriv') return activeSignal;
-    return {
-      id: 'deriv-dash-sig',
-      platform: 'deriv' as const,
-      marketSymbol: 'R_75',
-      marketName: 'Volatility 75 Index',
-      strategyId: 'smc_order_block',
-      strategyName: 'SMC Order Block (Bullish Demand)',
-      signalType: 'RISE' as const,
-      direction: 'RISE' as const,
-      strength: 94,
-      entryPrice: 4521.34,
-      recommendedContract: 'Rise Contract (5 Ticks)',
-      timeframe: '1M',
-      marketCondition: 'Strong Bullish Expansion',
-      riskLevel: 'LOW' as const,
-      generatedAt: Date.now(),
-      expiresInSeconds: 15,
-      initialExpirySeconds: 15,
-    };
+    return null;
   }, [currentActiveAsset, activeSignal]);
 
   const mt5Signal = useMemo(() => {
     if (currentActiveAsset.platform === 'mt5') return activeSignal;
-    return {
-      id: 'mt5-dash-sig',
-      platform: 'mt5' as const,
-      marketSymbol: 'EUR/USD',
-      marketName: 'EUR/USD',
-      strategyId: 'ema_trend_pullback',
-      strategyName: 'EMA Trend Pullback (20/200 Confluence)',
-      signalType: 'BUY' as const,
-      direction: 'BUY' as const,
-      strength: 89,
-      entryPrice: 1.17420,
-      stopLoss: 1.17280,
-      takeProfit: 1.17700,
-      riskReward: '1:2.0',
-      timeframe: '15M',
-      marketCondition: 'Bullish Trend Continuation',
-      riskLevel: 'LOW' as const,
-      generatedAt: Date.now(),
-      expiresInSeconds: 45,
-      initialExpirySeconds: 45,
-    };
+    return null;
   }, [currentActiveAsset, activeSignal]);
+
+  // Global Reset to Defaults Function
+  const handleResetToDefault = useCallback(() => {
+    try {
+      localStorage.removeItem('marketmind_accounts');
+      localStorage.removeItem('marketmind_strategies');
+      localStorage.removeItem('marketmind_risk_settings');
+      localStorage.removeItem('marketmind_signal_history');
+      localStorage.removeItem('marketmind_last_selected_market');
+    } catch (e) {
+      console.warn('Could not clear local storage', e);
+    }
+
+    setAccounts(DEFAULT_ACCOUNTS);
+    setStrategies(initialStrategyCatalog);
+    setRiskSettings(DEFAULT_RISK_SETTINGS);
+    setSignalHistory([]);
+    setSelectedDerivMarket(INITIAL_DERIV_MARKETS[0]);
+    setSelectedMt5Market(INITIAL_MT5_MARKETS[0]);
+    setCandles([]);
+    setTicks([]);
+
+    setNotifications([
+      {
+        id: `notif-reset-${Date.now()}`,
+        title: 'System Reset Complete',
+        message: 'All market settings, strategy configurations, and cached signal parameters have been reset to factory defaults.',
+        type: 'info',
+        timestamp: Date.now(),
+        read: false,
+        dismissed: false,
+      },
+    ]);
+  }, []);
 
   // Trade Execution Simulator
   const handleExecuteTrade = useCallback((signal: ActiveSignal) => {
@@ -911,6 +950,7 @@ export default function App() {
         isDarkMode={isDarkMode}
         onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        onResetToDefault={handleResetToDefault}
         onOpenDerivAuth={() => setIsDerivAuthOpen(true)}
         onOpenMT5Connect={() => setIsMT5ConnectOpen(true)}
         currentUser={currentUser}

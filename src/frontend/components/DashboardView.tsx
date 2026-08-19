@@ -239,42 +239,58 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-green-500/10 text-green-400 border border-green-500/30">
                   DERIV SYNTHETIC
                 </span>
-                <span className="font-bold text-white text-xs">{derivSignal?.marketName || 'Volatility 75'}</span>
+                <span className="font-bold text-white text-xs">{derivSignal ? derivSignal.marketName : 'Synthetics Radar'}</span>
               </div>
-              <span className="text-[10px] font-bold text-green-400 bg-green-500/10 border border-green-500/30 px-2 py-0.5 rounded">
-                Confidence: {derivSignal?.strength || 94}%
-              </span>
+              {derivSignal ? (
+                <span className="text-[10px] font-bold text-green-400 bg-green-500/10 border border-green-500/30 px-2 py-0.5 rounded">
+                  Confidence: {derivSignal.strength}%
+                </span>
+              ) : (
+                <span className="text-[10px] font-bold text-blue-400 bg-blue-500/10 border border-blue-500/30 px-2 py-0.5 rounded flex items-center space-x-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+                  <span>AWAITING CONFLUENCE</span>
+                </span>
+              )}
             </div>
 
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-[10px] text-[#848E9C] uppercase">Winning Strategy</div>
-                <div className="font-bold text-xs text-white mt-0.5">{derivSignal?.strategyName || 'SMC Order Block'}</div>
-              </div>
-              <div className="text-right">
-                <div className="text-[10px] text-[#848E9C] uppercase">Signal Action</div>
-                <div className="text-xl font-black text-green-400">{derivSignal?.signalType || 'RISE'}</div>
-              </div>
-            </div>
+            {derivSignal ? (
+              <>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-[10px] text-[#848E9C] uppercase">Winning Strategy</div>
+                    <div className="font-bold text-xs text-white mt-0.5">{derivSignal.strategyName}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[10px] text-[#848E9C] uppercase">Signal Action</div>
+                    <div className="text-xl font-black text-green-400">{derivSignal.signalType}</div>
+                  </div>
+                </div>
 
-            <div className="grid grid-cols-3 gap-2 text-xs pt-1">
-              <div className="p-2 rounded bg-[#0B0E11] border border-[#2B2F36]">
-                <div className="text-[9px] text-[#848E9C] uppercase">Entry Ref</div>
-                <div className="font-bold text-white mt-0.5 text-xs">{derivSignal?.entryPrice.toFixed(2) || '4521.34'}</div>
+                <div className="grid grid-cols-3 gap-2 text-xs pt-1">
+                  <div className="p-2 rounded bg-[#0B0E11] border border-[#2B2F36]">
+                    <div className="text-[9px] text-[#848E9C] uppercase">Entry Ref</div>
+                    <div className="font-bold text-white mt-0.5 text-xs">{derivSignal.entryPrice.toFixed(2)}</div>
+                  </div>
+                  <div className="p-2 rounded bg-[#0B0E11] border border-[#2B2F36]">
+                    <div className="text-[9px] text-[#848E9C] uppercase">Contract</div>
+                    <div className="font-bold text-blue-300 mt-0.5 text-xs truncate">{derivSignal.recommendedContract}</div>
+                  </div>
+                  <div className="p-2 rounded bg-[#0B0E11] border border-[#2B2F36]">
+                    <div className="text-[9px] text-[#848E9C] uppercase">Risk Level</div>
+                    <div className="font-bold text-green-400 mt-0.5 text-xs">{derivSignal.riskLevel}</div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="p-3 rounded bg-[#0B0E11] border border-[#2B2F36] text-center space-y-1.5">
+                <div className="text-xs font-bold text-[#848E9C]">Market Scan Active (No Forced Signals)</div>
+                <div className="text-[11px] text-[#848E9C]">Awaiting strict strategy rules (≥75% confidence threshold) across Digit & SMC algorithms.</div>
               </div>
-              <div className="p-2 rounded bg-[#0B0E11] border border-[#2B2F36]">
-                <div className="text-[9px] text-[#848E9C] uppercase">Contract</div>
-                <div className="font-bold text-blue-300 mt-0.5 text-xs truncate">{derivSignal?.recommendedContract || 'Rise Contract'}</div>
-              </div>
-              <div className="p-2 rounded bg-[#0B0E11] border border-[#2B2F36]">
-                <div className="text-[9px] text-[#848E9C] uppercase">Risk Level</div>
-                <div className="font-bold text-green-400 mt-0.5 text-xs">{derivSignal?.riskLevel || 'LOW'}</div>
-              </div>
-            </div>
+            )}
 
             <button
               onClick={() => onNavigateTab('deriv')}
-              className="w-full py-2 rounded bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center space-x-1.5 transition"
+              className="w-full py-2 rounded bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center space-x-1.5 transition cursor-pointer"
             >
               <span>Open Deriv Analysis Terminal</span>
               <ArrowRight className="w-3.5 h-3.5" />
@@ -293,46 +309,62 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/30">
                   TRADINGVIEW LIVE FEED
                 </span>
-                <span className="font-bold text-white text-xs">{mt5Signal?.marketName || 'EUR/USD'}</span>
+                <span className="font-bold text-white text-xs">{mt5Signal ? mt5Signal.marketName : 'Forex / Crypto Radar'}</span>
               </div>
-              <span className="text-[10px] font-bold text-blue-400 bg-blue-500/10 border border-blue-500/30 px-2 py-0.5 rounded">
-                Confidence: {mt5Signal?.strength || 89}%
-              </span>
+              {mt5Signal ? (
+                <span className="text-[10px] font-bold text-blue-400 bg-blue-500/10 border border-blue-500/30 px-2 py-0.5 rounded">
+                  Confidence: {mt5Signal.strength}%
+                </span>
+              ) : (
+                <span className="text-[10px] font-bold text-blue-400 bg-blue-500/10 border border-blue-500/30 px-2 py-0.5 rounded flex items-center space-x-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+                  <span>AWAITING CONFLUENCE</span>
+                </span>
+              )}
             </div>
 
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-[10px] text-[#848E9C] uppercase">Winning Strategy</div>
-                <div className="font-bold text-xs text-white mt-0.5">{mt5Signal?.strategyName || 'EMA Trend Pullback'}</div>
-              </div>
-              <div className="text-right">
-                <div className="text-[10px] text-[#848E9C] uppercase">Signal Action</div>
-                <div className="text-xl font-black text-blue-400">{mt5Signal?.signalType || 'BUY'}</div>
-              </div>
-            </div>
+            {mt5Signal ? (
+              <>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-[10px] text-[#848E9C] uppercase">Winning Strategy</div>
+                    <div className="font-bold text-xs text-white mt-0.5">{mt5Signal.strategyName}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[10px] text-[#848E9C] uppercase">Signal Action</div>
+                    <div className="text-xl font-black text-blue-400">{mt5Signal.signalType}</div>
+                  </div>
+                </div>
 
-            <div className="grid grid-cols-4 gap-1.5 text-xs pt-1">
-              <div className="p-1.5 rounded bg-[#0B0E11] border border-blue-500/30">
-                <div className="text-[8px] text-[#848E9C] uppercase">🎯 Entry</div>
-                <div className="font-bold text-white mt-0.5 text-[11px] truncate">{mt5Signal?.entryPrice.toFixed(5) || '1.17420'}</div>
+                <div className="grid grid-cols-4 gap-1.5 text-xs pt-1">
+                  <div className="p-1.5 rounded bg-[#0B0E11] border border-blue-500/30">
+                    <div className="text-[8px] text-[#848E9C] uppercase">🎯 Entry</div>
+                    <div className="font-bold text-white mt-0.5 text-[11px] truncate">{mt5Signal.entryPrice.toFixed(4)}</div>
+                  </div>
+                  <div className="p-1.5 rounded bg-[#0B0E11] border border-rose-500/30">
+                    <div className="text-[8px] text-rose-400 uppercase">🔴 Exit (SL)</div>
+                    <div className="font-bold text-rose-400 mt-0.5 text-[11px] truncate">{mt5Signal.stopLoss?.toFixed(4) || '—'}</div>
+                  </div>
+                  <div className="p-1.5 rounded bg-[#0B0E11] border border-green-500/30">
+                    <div className="text-[8px] text-green-400 uppercase">🟢 Exit (TP)</div>
+                    <div className="font-bold text-green-400 mt-0.5 text-[11px] truncate">{mt5Signal.takeProfit?.toFixed(4) || '—'}</div>
+                  </div>
+                  <div className="p-1.5 rounded bg-[#0B0E11] border border-[#2B2F36]">
+                    <div className="text-[8px] text-[#848E9C] uppercase">R:R Ratio</div>
+                    <div className="font-bold text-blue-300 mt-0.5 text-[11px] truncate">{mt5Signal.riskReward || '1:2.0'}</div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="p-3 rounded bg-[#0B0E11] border border-[#2B2F36] text-center space-y-1.5">
+                <div className="text-xs font-bold text-[#848E9C]">Real-Time Market Scanner Active</div>
+                <div className="text-[11px] text-[#848E9C]">Analyzing live price action, SMC Order Blocks, and Trend EMAs directly from TradingView charts.</div>
               </div>
-              <div className="p-1.5 rounded bg-[#0B0E11] border border-rose-500/30">
-                <div className="text-[8px] text-rose-400 uppercase">🔴 Exit (SL)</div>
-                <div className="font-bold text-rose-400 mt-0.5 text-[11px] truncate">{mt5Signal?.stopLoss?.toFixed(5) || '1.17280'}</div>
-              </div>
-              <div className="p-1.5 rounded bg-[#0B0E11] border border-green-500/30">
-                <div className="text-[8px] text-green-400 uppercase">🟢 Exit (TP)</div>
-                <div className="font-bold text-green-400 mt-0.5 text-[11px] truncate">{mt5Signal?.takeProfit?.toFixed(5) || '1.17700'}</div>
-              </div>
-              <div className="p-1.5 rounded bg-[#0B0E11] border border-[#2B2F36]">
-                <div className="text-[8px] text-[#848E9C] uppercase">R:R Ratio</div>
-                <div className="font-bold text-blue-300 mt-0.5 text-[11px] truncate">{mt5Signal?.riskReward || '1:2.0'}</div>
-              </div>
-            </div>
+            )}
 
             <button
               onClick={() => onNavigateTab('mt5')}
-              className="w-full py-2 rounded bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center space-x-1.5 transition"
+              className="w-full py-2 rounded bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center space-x-1.5 transition cursor-pointer"
             >
               <span>Open TradingView Live Terminal</span>
               <ArrowRight className="w-3.5 h-3.5" />

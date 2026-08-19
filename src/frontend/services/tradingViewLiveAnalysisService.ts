@@ -549,6 +549,8 @@ class TradingViewLiveAnalysisService {
       const tp = isLong ? entryPrice + offset * 2.0 : entryPrice - offset * 2.0;
       const sl = isLong ? entryPrice - offset : entryPrice + offset;
 
+      const tfSeconds = this.getTimeframeSeconds(this.currentTimeframe);
+
       activeSignal = {
         id: `sig_${asset.id}_${Date.now()}`,
         platform: 'mt5',
@@ -565,8 +567,8 @@ class TradingViewLiveAnalysisService {
         takeProfit: tp,
         riskReward: '1:2.0',
         generatedAt: Date.now(),
-        expiresInSeconds: 15,
-        initialExpirySeconds: 15,
+        expiresInSeconds: tfSeconds,
+        initialExpirySeconds: tfSeconds,
         riskLevel: eligibleWinner.confidence >= 90 ? 'LOW' : eligibleWinner.confidence >= 80 ? 'MEDIUM' : 'HIGH',
         recommendedContract: `${eligibleWinner.signalType} Market Order`,
       };

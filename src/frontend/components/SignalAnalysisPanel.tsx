@@ -41,17 +41,26 @@ export const SignalAnalysisPanel: React.FC<SignalAnalysisPanelProps> = ({
   onExecuteTrade,
   isDarkMode = true,
 }) => {
-  const [countdown, setCountdown] = useState(activeSignal?.expiresInSeconds || 15);
+  const initialSeconds = activeSignal?.expiresInSeconds || (asset.category === 'forex' || asset.category === 'crypto' ? 900 : 300);
+  const [countdown, setCountdown] = useState(initialSeconds);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   useEffect(() => {
     if (!activeSignal) return;
-    setCountdown(activeSignal.expiresInSeconds);
+    const expirySec = activeSignal.expiresInSeconds || (asset.category === 'forex' || asset.category === 'crypto' ? 900 : 300);
+    setCountdown(expirySec);
     const interval = setInterval(() => {
-      setCountdown(prev => (prev > 0 ? prev - 1 : activeSignal.initialExpirySeconds || 15));
+      setCountdown(prev => (prev > 0 ? prev - 1 : 0));
     }, 1000);
     return () => clearInterval(interval);
-  }, [activeSignal]);
+  }, [activeSignal, asset]);
+
+  const formatCountdown = (totalSec: number) => {
+    if (totalSec <= 0) return 'Expired / Invalidated';
+    const mins = Math.floor(totalSec / 60);
+    const secs = totalSec % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
 
   const strength = activeSignal?.strength || 45;
 
@@ -171,7 +180,7 @@ export const SignalAnalysisPanel: React.FC<SignalAnalysisPanelProps> = ({
               <div>
                 <div className="text-[9px] text-[#848E9C] uppercase font-bold">Signal Validity</div>
                 <div className="text-xs font-mono font-bold text-yellow-300">
-                  00:{countdown.toString().padStart(2, '0')}s
+                  {formatCountdown(countdown)}
                 </div>
               </div>
             </div>

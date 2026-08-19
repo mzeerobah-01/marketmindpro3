@@ -29,6 +29,7 @@ interface HeaderProps {
   isDarkMode: boolean;
   onToggleDarkMode: () => void;
   onOpenSettings: () => void;
+  onResetToDefault?: () => void;
   onOpenDerivAuth?: () => void;
   onOpenMT5Connect?: () => void;
   currentUser?: UserSession | null;
@@ -44,6 +45,7 @@ export const Header: React.FC<HeaderProps> = ({
   isDarkMode,
   onToggleDarkMode,
   onOpenSettings,
+  onResetToDefault,
   onOpenDerivAuth,
   onOpenMT5Connect,
   currentUser,
@@ -54,6 +56,15 @@ export const Header: React.FC<HeaderProps> = ({
   const [showNotifications, setShowNotifications] = useState(false);
   const [showAccountDropdown, setShowAccountDropdown] = useState<'deriv' | 'mt5' | null>(null);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+
+  const handleResetClick = () => {
+    if (onResetToDefault) {
+      setIsResetting(true);
+      onResetToDefault();
+      setTimeout(() => setIsResetting(false), 800);
+    }
+  };
 
   useEffect(() => {
     const updateTime = () => {
@@ -344,6 +355,19 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             )}
           </div>
+
+          {/* Reset / Refresh to Defaults Button */}
+          {onResetToDefault && (
+            <button
+              id="btn-refresh-reset-defaults"
+              onClick={handleResetClick}
+              className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded bg-[#1E2329] border border-[#2B2F36] hover:border-blue-500/50 hover:bg-blue-500/10 text-[#848E9C] hover:text-blue-400 font-mono text-[11px] font-bold uppercase transition cursor-pointer"
+              title="Reset everything back to default factory settings & clear cache"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isResetting ? 'animate-spin text-blue-400' : ''}`} />
+              <span className="hidden sm:inline">Reset Defaults</span>
+            </button>
+          )}
 
           {/* Settings Button */}
           <button

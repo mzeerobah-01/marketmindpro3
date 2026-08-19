@@ -966,35 +966,35 @@ export function evaluateAllStrategies(context: StrategyEvaluationContext): {
     });
   }
 
-  // Micro-Tick Scalping (requires active momentum stream)
-  if (ticks.length >= 4) {
-    const recentTicks = ticks.slice(-4);
-    const allUp = recentTicks.every((t, i) => i === 0 || t.price > recentTicks[i - 1].price);
-    const allDown = recentTicks.every((t, i) => i === 0 || t.price < recentTicks[i - 1].price);
-    if (allUp) {
+  // Micro-Tick Scalping (requires active momentum stream and EMA trend confluence)
+  if (ticks.length >= 6 && isDeriv) {
+    const recentTicks = ticks.slice(-6);
+    const allUp = recentTicks.every((t, i) => i === 0 || t.price >= recentTicks[i - 1].price);
+    const allDown = recentTicks.every((t, i) => i === 0 || t.price <= recentTicks[i - 1].price);
+    if (allUp && curRsi < 68 && curEma20 > curEma50) {
       scores.push({
         id: 'micro_tick_scalping',
         name: 'Micro-Tick Momentum Scalping',
         category: 'Timing & Scalping',
-        confidence: 78,
-        signalType: isDeriv ? 'RISE' : 'BUY',
+        confidence: 82,
+        signalType: 'RISE',
         direction: 'BUY',
-        entryCriteria: '4 consecutive ascending ticks with tight momentum spread',
-        reason: 'Immediate micro-tick velocity favors rapid trade follow-through.',
-        winRateHistorical: 67.0,
+        entryCriteria: '6 consecutive ascending ticks with aligned 20 EMA trend',
+        reason: 'Immediate micro-tick velocity favors rapid trade follow-through in trend direction.',
+        winRateHistorical: 71.0,
         eligible: true,
       });
-    } else if (allDown) {
+    } else if (allDown && curRsi > 32 && curEma20 < curEma50) {
       scores.push({
         id: 'micro_tick_scalping',
         name: 'Micro-Tick Momentum Scalping',
         category: 'Timing & Scalping',
-        confidence: 78,
-        signalType: isDeriv ? 'FALL' : 'SELL',
+        confidence: 82,
+        signalType: 'FALL',
         direction: 'SELL',
-        entryCriteria: '4 consecutive descending ticks with tight momentum spread',
-        reason: 'Immediate micro-tick velocity favors rapid trade follow-through.',
-        winRateHistorical: 67.0,
+        entryCriteria: '6 consecutive descending ticks with aligned 20 EMA trend',
+        reason: 'Immediate micro-tick velocity favors rapid trade follow-through in trend direction.',
+        winRateHistorical: 71.0,
         eligible: true,
       });
     }
