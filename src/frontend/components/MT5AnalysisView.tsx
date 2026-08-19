@@ -64,15 +64,12 @@ export const MT5AnalysisView: React.FC<MT5AnalysisViewProps> = ({
     return matchesCat && matchesSearch;
   });
 
-  // Calculate SL / TP values for TradingView / MT5 asset
-  const curPrice = selectedMarket.currentPrice;
+  // Strategy-derived Entry, SL, and TP values
   const isBuy = activeSignal?.direction === 'BUY' || activeSignal?.direction === 'RISE';
-  const slOffset = curPrice * 0.003;
-  const tpOffset = slOffset * 2.0; // 1:2 R:R
-
-  const calculatedEntry = activeSignal?.entryPrice || curPrice;
-  const calculatedSL = isBuy ? calculatedEntry - slOffset : calculatedEntry + slOffset;
-  const calculatedTP = isBuy ? calculatedEntry + tpOffset : calculatedEntry - tpOffset;
+  const entryPrice = activeSignal?.entryPrice;
+  const stopLoss = activeSignal?.stopLoss;
+  const takeProfit = activeSignal?.takeProfit;
+  const riskReward = activeSignal?.riskReward || '1:2.0';
 
   return (
     <div id="tradingview-analysis-workspace" className="space-y-3 font-mono">
@@ -203,9 +200,9 @@ export const MT5AnalysisView: React.FC<MT5AnalysisViewProps> = ({
             candles={candles}
             ticks={ticks}
             smcOverlays={smcOverlays}
-            entryPrice={calculatedEntry}
-            stopLoss={calculatedSL}
-            takeProfit={calculatedTP}
+            entryPrice={entryPrice}
+            stopLoss={stopLoss}
+            takeProfit={takeProfit}
             selectedTimeframe={selectedTimeframe}
             onTimeframeChange={setSelectedTimeframe}
             isDarkMode={isDarkMode}
@@ -227,7 +224,7 @@ export const MT5AnalysisView: React.FC<MT5AnalysisViewProps> = ({
                 </h3>
               </div>
               <span className="text-[10px] font-mono font-bold text-green-400 bg-green-500/10 border border-green-500/30 px-2 py-0.5 rounded">
-                R:R 1:2.0
+                R:R {riskReward}
               </span>
             </div>
 
@@ -258,19 +255,19 @@ export const MT5AnalysisView: React.FC<MT5AnalysisViewProps> = ({
               <div className="p-2 rounded bg-[#0B0E11] border border-blue-500/30">
                 <div className="text-[9px] text-[#848E9C] uppercase font-bold">🎯 Entry Point</div>
                 <div className="text-xs font-mono font-bold text-white mt-0.5">
-                  {activeSignal ? calculatedEntry.toFixed(selectedMarket.digits) : 'Awaiting Trigger'}
+                  {activeSignal && entryPrice !== undefined ? entryPrice.toFixed(selectedMarket.digits) : 'Awaiting Setup'}
                 </div>
               </div>
               <div className="p-2 rounded bg-[#0B0E11] border border-rose-500/30">
                 <div className="text-[9px] text-rose-400 uppercase font-bold">🔴 Exit Point (SL)</div>
                 <div className="text-xs font-mono font-bold text-rose-400 mt-0.5">
-                  {activeSignal ? calculatedSL.toFixed(selectedMarket.digits) : 'Pending Setup'}
+                  {activeSignal && stopLoss !== undefined ? stopLoss.toFixed(selectedMarket.digits) : 'Awaiting Setup'}
                 </div>
               </div>
               <div className="p-2 rounded bg-[#0B0E11] border border-green-500/30">
                 <div className="text-[9px] text-green-400 uppercase font-bold">🟢 Exit Point (TP)</div>
                 <div className="text-xs font-mono font-bold text-green-400 mt-0.5">
-                  {activeSignal ? calculatedTP.toFixed(selectedMarket.digits) : 'Pending Setup'}
+                  {activeSignal && takeProfit !== undefined ? takeProfit.toFixed(selectedMarket.digits) : 'Awaiting Setup'}
                 </div>
               </div>
             </div>

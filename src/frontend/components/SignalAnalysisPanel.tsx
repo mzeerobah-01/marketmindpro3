@@ -101,16 +101,11 @@ export const SignalAnalysisPanel: React.FC<SignalAnalysisPanelProps> = ({
     activeSignal?.signalType?.includes('ODD') ||
     activeSignal?.signalType?.includes('DIFFERS');
 
-  // Calculate Entry, Stop Loss (Exit), and Take Profit (Exit)
-  const curPrice = activeSignal?.entryPrice || asset.currentPrice;
-  const isForex = asset.category === 'forex';
-  const isCrypto = asset.category === 'crypto';
-  const offset = curPrice * (isForex ? 0.0018 : isCrypto ? 0.012 : 0.0035);
-
-  const entryPoint = activeSignal?.entryPrice || curPrice;
-  const takeProfitExit = activeSignal?.takeProfit || (isBullish ? entryPoint + offset * 2.0 : entryPoint - offset * 2.0);
-  const stopLossExit = activeSignal?.stopLoss || (isBullish ? entryPoint - offset : entryPoint + offset);
-  const rrRatio = '1 : 2.0';
+  // Entry, Stop Loss (Exit), and Take Profit (Exit) strictly from activeSignal
+  const entryPoint = activeSignal?.entryPrice ?? asset.currentPrice;
+  const takeProfitExit = activeSignal?.takeProfit ?? 0;
+  const stopLossExit = activeSignal?.stopLoss ?? 0;
+  const rrRatio = activeSignal?.riskReward || '1 : 2.0';
 
   const copyToClipboard = (text: string, field: string) => {
     navigator.clipboard.writeText(text);

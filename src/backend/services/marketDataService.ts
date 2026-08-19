@@ -280,47 +280,61 @@ export function extractLastDigit(price: number, digits: number): number {
   return isNaN(digit) ? 0 : digit;
 }
 
-// Generate realistic initial candles for a market
-export function generateInitialCandles(basePrice: number, count = 40, digits = 2): CandleData[] {
-  const candles: CandleData[] = [];
-  const now = Date.now();
-  let currentClose = basePrice;
-  const timeStep = 60 * 1000; // 1 min
+// Generate realistic initial candles for a market anchored precisely to basePrice
+export function generateInitialCandles(basePrice: number, count = 50, digits = 2): CandleData[] {
+  const candles: CandleData[] = new Array(count);
+  const now = Math.floor(Date.now() / 1000);
+  const timeStep = 60; // 1 min in seconds
+  let walkingClose = basePrice;
+  const volatilityPct = 0.0008;
 
+  // Walk backwards from latest candle (which closes at basePrice)
   for (let i = count - 1; i >= 0; i--) {
-    const time = now - i * timeStep;
-    const volatilityPct = 0.0015;
-    const delta = (Math.random() - 0.49) * currentClose * volatilityPct;
-    const open = currentClose;
-    const close = Number((open + delta).toFixed(digits));
-    const high = Number((Math.max(open, close) + Math.random() * Math.abs(delta) * 0.8).toFixed(digits));
-    const low = Number((Math.min(open, close) - Math.random() * Math.abs(delta) * 0.8).toFixed(digits));
+    const time = now - (count - 1 - i) * timeStep;
+    const close = Number(walkingClose.toFixed(digits));
+    const delta = (Math.random() - 0.5) * walkingClose * volatilityPct;
+    const open = Number((close - delta).toFixed(digits));
+    const wickHigh = Math.random() * Math.abs(delta) * 0.9;
+    const wickLow = Math.random() * Math.abs(delta) * 0.9;
+    const high = Number((Math.max(open, close) + wickHigh).toFixed(digits));
+    const low = Number((Math.min(open, close) - wickLow).toFixed(digits));
     const volume = Math.floor(100 + Math.random() * 500);
 
-    candles.push({ time, open, high, low, close, volume });
-    currentClose = close;
+    candles[i] = { time, open, high, low, close, volume };
+    walkingClose = open;
   }
+
+  // Ensure last candle close is precisely basePrice
+  candles[count - 1].close = Number(basePrice.toFixed(digits));
   return candles;
 }
 
-// Generate initial ticks
+// Generate initial ticks anchored precisely to basePrice
 export function generateInitialTicks(basePrice: number, count = 50, digits = 2): TickData[] {
-  const ticks: TickData[] = [];
-  let price = basePrice;
+  const ticks: TickData[] = new Array(count);
   const now = Date.now();
+  let walkingPrice = basePrice;
+  const tickVolatility = basePrice * 0.0002;
 
   for (let i = count - 1; i >= 0; i--) {
-    const change = (Math.random() - 0.495) * (basePrice * 0.0004);
-    price = Number((price + change).toFixed(digits));
+    const price = Number(walkingPrice.toFixed(digits));
     const lastDigit = extractLastDigit(price, digits);
-    ticks.push({
-      id: count - i,
-      timestamp: now - i * 1000,
+    const time = now - (count - 1 - i) * 1000;
+    const delta = (Math.random() - 0.5) * tickVolatility;
+
+    ticks[i] = {
+      id: now - (count - 1 - i) * 1000,
+      timestamp: time,
       price,
       lastDigit,
-      direction: change >= 0 ? 'up' : 'down',
-    });
+      direction: delta >= 0 ? 'up' : 'down',
+    };
+    walkingPrice = price - delta;
   }
+
+  // Ensure last tick price is precisely basePrice
+  ticks[count - 1].price = Number(basePrice.toFixed(digits));
+  ticks[count - 1].lastDigit = extractLastDigit(basePrice, digits);
   return ticks;
 }
 

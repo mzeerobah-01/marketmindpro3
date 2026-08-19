@@ -196,32 +196,35 @@ class TradingViewLiveAnalysisService {
     const count = 75;
     const now = Math.floor(Date.now() / 1000);
     const intervalSec = this.getTimeframeSeconds(this.currentTimeframe);
-    const result: CandleData[] = [];
-    let cur = basePrice * 0.985;
-    const vol = basePrice * (asset.category === 'forex' ? 0.0006 : asset.category === 'crypto' ? 0.003 : 0.001);
+    const result: CandleData[] = new Array(count);
+    let walkingClose = basePrice;
+    const vol = basePrice * (asset.category === 'forex' ? 0.0004 : asset.category === 'crypto' ? 0.002 : 0.0008);
 
-    for (let i = count; i >= 0; i--) {
-      const time = now - i * intervalSec;
-      const change = (Math.random() - 0.485) * vol;
-      const open = cur;
-      const close = cur + change;
-      const high = Math.max(open, close) + Math.random() * (vol * 0.6);
-      const low = Math.min(open, close) - Math.random() * (vol * 0.6);
-      cur = close;
+    for (let i = count - 1; i >= 0; i--) {
+      const time = now - (count - 1 - i) * intervalSec;
+      const close = Number(walkingClose.toFixed(asset.digits));
+      const delta = (Math.random() - 0.5) * vol;
+      const open = Number((close - delta).toFixed(asset.digits));
+      const wickHigh = Math.random() * Math.abs(delta) * 0.8;
+      const wickLow = Math.random() * Math.abs(delta) * 0.8;
+      const high = Number((Math.max(open, close) + wickHigh).toFixed(asset.digits));
+      const low = Number((Math.min(open, close) - wickLow).toFixed(asset.digits));
+      const volume = Math.floor(Math.random() * 800 + 100);
 
-      result.push({
-        time,
-        open: Number(open.toFixed(asset.digits)),
-        high: Number(high.toFixed(asset.digits)),
-        low: Number(low.toFixed(asset.digits)),
-        close: Number(close.toFixed(asset.digits)),
-        volume: Math.floor(Math.random() * 800 + 100),
-      });
+      result[i] = { time, open, high, low, close, volume };
+      walkingClose = open;
     }
 
+    result[count - 1].close = Number(basePrice.toFixed(asset.digits));
     this.candles = result;
-    const lastPrice = result[result.length - 1].close;
-    asset.currentPrice = lastPrice;
+
+    this.ticks = result.slice(-40).map((c, i) => ({
+      id: c.time * 1000,
+      timestamp: c.time * 1000,
+      price: c.close,
+      lastDigit: parseInt(c.close.toFixed(asset.digits).slice(-1), 10),
+      direction: i > 0 && c.close >= result[i - 1].close ? 'up' : 'down',
+    }));
   }
 
   private setupLiveStream(): void {
@@ -541,19 +544,51 @@ class TradingViewLiveAnalysisService {
     let activeSignal: ActiveSignal | null = null;
     if (eligibleWinner) {
       const entryPrice = lastCandle.close;
-      const isForex = asset.category === 'forex';
-      const isCrypto = asset.category === 'crypto';
-      const offset = entryPrice * (isForex ? 0.0018 : isCrypto ? 0.012 : 0.0035);
-
       const isLong = eligibleWinner.signalType === 'BUY' || eligibleWinner.signalType === 'RISE';
-      const tp = isLong ? entryPrice + offset * 2.0 : entryPrice - offset * 2.0;
-      const sl = isLong ? entryPrice - offset : entryPrice + offset;
+      
+      let sl = 0;
+      let tp = 0;
+
+      if (eligibleWinner.id === 'smc_order_block' && recentOB) {
+        const obTop = recentOB.priceUpper || recentOB.price * 1.001;
+        const obBottom = recentOB.priceLower || recentOB.price * 0.999;
+        const obHeight = Math.max(obTop - obBottom, entryPrice * 0.0008);
+        if (isLong) {
+          sl = Number((obBottom - obHeight * 0.15).toFixed(asset.digits));
+          const risk = Math.max(entryPrice - sl, entryPrice * 0.0008);
+          tp = Number((entryPrice + risk * 2.0).toFixed(asset.digits));
+        } else {
+          sl = Number((obTop + obHeight * 0.15).toFixed(asset.digits));
+          const risk = Math.max(sl - entryPrice, entryPrice * 0.0008);
+          tp = Number((entryPrice - risk * 2.0).toFixed(asset.digits));
+        }
+      } else if (eligibleWinner.id === 'ema_trend_pullback') {
+        const risk = Math.max(Math.abs(entryPrice - curEma50), entryPrice * 0.0012);
+        if (isLong) {
+          sl = Number((entryPrice - risk).toFixed(asset.digits));
+          tp = Number((entryPrice + risk * 2.0).toFixed(asset.digits));
+        } else {
+          sl = Number((entryPrice + risk).toFixed(asset.digits));
+          tp = Number((entryPrice - risk * 2.0).toFixed(asset.digits));
+        }
+      } else {
+        const isForex = asset.category === 'forex';
+        const isCrypto = asset.category === 'crypto';
+        const risk = entryPrice * (isForex ? 0.0015 : isCrypto ? 0.01 : 0.003);
+        if (isLong) {
+          sl = Number((entryPrice - risk).toFixed(asset.digits));
+          tp = Number((entryPrice + risk * 2.0).toFixed(asset.digits));
+        } else {
+          sl = Number((entryPrice + risk).toFixed(asset.digits));
+          tp = Number((entryPrice - risk * 2.0).toFixed(asset.digits));
+        }
+      }
 
       const tfSeconds = this.getTimeframeSeconds(this.currentTimeframe);
 
       activeSignal = {
         id: `sig_${asset.id}_${Date.now()}`,
-        platform: 'mt5',
+        platform: asset.platform,
         marketId: asset.id,
         marketName: asset.name,
         marketSymbol: asset.symbol,
